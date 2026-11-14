@@ -1,0 +1,58 @@
+.inlet-card {
+  display: grid;
+  grid-template-columns: 45% 27.5% 27.5%;
+  align-items: center;
+  min-height: 133px;
+  padding: 27.79px 22px 27.77px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 15px;
+  background: #fff;
+}
+
+.inlet-card__description { display: flex; align-items: flex-start; gap: 14px; }
+
+.inlet-card__description h3 {
+  min-height: 27px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 26.1px;
+}
+
+.inlet-card__description p {
+  min-height: 21px;
+  margin: 0.01px 0 0;
+  color: var(--dashboard-muted);
+  font-size: 14px;
+  line-height: 20.3px;
+}
+
+.inlet-card__metric {
+  min-width: 0;
+  padding: 7px 0 8.01px 32px;
+  border-left: 1px solid var(--dashboard-border);
+}
+
+.inlet-card__metric .metric-label { height: 19.84px; }
+
+.inlet-card__metric p {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  height: 40.59px;
+  margin: 0;
+}
+
+.inlet-card__metric strong { font-size: 28px; font-weight: 700; line-height: 40.6px; }
+.inlet-card__metric p span { color: var(--dashboard-muted); font-size: 13px; line-height: 18.85px; }
+
+@media (max-width: 1100px) {
+  .inlet-card { grid-template-columns: 1.2fr 1fr 1fr; }
+  .inlet-card__metric { padding-left: 20px; }
+}
+
+@media (max-width: 800px) {
+  .inlet-card { grid-template-columns: 1fr 1fr; gap: 20px; padding: 22px; }
+  .inlet-card__description { grid-column: 1 / -1; }
+  .inlet-card__metric { padding-left: 0; border-left: 0; }
+}

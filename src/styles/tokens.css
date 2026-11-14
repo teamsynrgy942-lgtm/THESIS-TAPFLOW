@@ -1,0 +1,12 @@
+:root {
+  color-scheme: dark;
+  --font-family: 'Inter Variable', 'Inter', sans-serif;
+  --color-navy: #041a30;
+  --color-white: #fff;
+  --color-heading: #f3fbff;
+  --color-ink: #082b42;
+  --color-action: #82dff0;
+  --color-action-border: #a2ebfc;
+  --color-logo-border: #91d5ea;
+  --shadow-text: 0 2px 14px rgb(2 16 34 / 50%);
+}

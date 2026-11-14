@@ -1,0 +1,50 @@
+.placeholder-page {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100svh;
+  place-items: center;
+  padding: 48px 24px;
+  background: var(--color-navy);
+  color: var(--color-heading);
+  text-align: center;
+}
+
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 560px;
+}
+
+.placeholder-content h1,
+.placeholder-content p {
+  margin: 0;
+}
+
+.placeholder-content h1 {
+  font-size: clamp(36px, 6vw, 55px);
+  font-weight: 740;
+  letter-spacing: -0.042em;
+  line-height: 1.08;
+}
+
+.placeholder-content .placeholder-eyebrow {
+  margin-top: 16px;
+  color: var(--color-action);
+  font-size: 14px;
+  font-weight: 620;
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-action);
+  font-weight: 620;
+  text-underline-offset: 5px;
+}
+
+.text-link:hover {
+  color: var(--color-action-border);
+}

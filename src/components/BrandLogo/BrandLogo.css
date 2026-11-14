@@ -1,0 +1,20 @@
+.brand-logo {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--logo-size, 116px);
+  height: var(--logo-size, 116px);
+  overflow: hidden;
+  border: 1px solid var(--color-logo-border);
+  border-radius: 50%;
+  background: var(--color-white);
+  box-shadow: 0 0 0 7px rgb(127 220 242 / 16%), 0 5px 24px rgb(3 22 42 / 55%);
+}
+
+.brand-logo img {
+  position: absolute;
+  top: 2.59%;
+  left: 2.59%;
+  width: 94.83%;
+  height: 94.83%;
+  object-fit: contain;
+}

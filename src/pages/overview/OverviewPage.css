@@ -1,0 +1,32 @@
+.overview-header > .status-badge {
+  min-width: 122.72px;
+}
+
+.overview-rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 9.99px;
+  padding-top: 15px;
+}
+
+.overview-rooms h2 {
+  min-height: 28px;
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 27.55px;
+}
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 19px;
+}
+
+@media (max-width: 1300px) {
+  .room-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1000px) {
+  .room-grid { grid-template-columns: minmax(0, 1fr); }
+}

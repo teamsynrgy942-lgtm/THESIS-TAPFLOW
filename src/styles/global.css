@@ -1,0 +1,49 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 280px;
+  background: var(--color-navy);
+  font-family: var(--font-family);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-width: 280px;
+  margin: 0;
+}
+
+body,
+button,
+input,
+textarea {
+  font-family: var(--font-family);
+}
+
+img {
+  display: block;
+}
+
+a:focus-visible {
+  outline: 3px solid var(--color-white);
+  outline-offset: 5px;
+}
+
+::selection {
+  background: var(--color-action);
+  color: var(--color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
