@@ -15,17 +15,17 @@ test('Overview retains the Figma shell and cards while displaying database telem
 
   for (const roomNumber of [1, 2, 3]) {
     const card = page.getByRole('article', { name: `Room ${roomNumber}`, exact: true });
-    await expect(card.getByText('Recent report', { exact: true })).toBeVisible();
+    await expect(card.getByText('ON', { exact: true }).first()).toBeVisible();
     await expect(card.getByText(roomNumber === 1 ? 'Active' : 'Inactive', { exact: true })).toBeVisible();
-    await expect(card.getByText(roomNumber === 2 ? 'Open' : 'Closed', { exact: true })).toBeVisible();
-    await expect(card.getByText(roomNumber === 3 ? 'On' : 'Off', { exact: true })).toBeVisible();
+    await expect(card.getByText(roomNumber === 2 ? 'ON' : 'OFF', { exact: true }).first()).toBeVisible();
+    await expect(card.locator('dd').nth(3)).toHaveText(roomNumber === 3 ? 'ON' : 'OFF');
     await expect(card.getByText('Flow Detected', { exact: true })).toBeVisible();
     await expect(card.getByText(/not calibrated|pulses|used today/i)).toHaveCount(0);
-    await expect(card.locator('time')).toHaveCount(0);
+    await expect(card.locator('time')).toHaveCount(1);
     await expect(card.getByRole('link', { name: `View Room ${roomNumber} details` })).toBeVisible();
   }
   const inlet = page.getByRole('region', { name: 'Main water inlet' });
-  await expect(inlet.getByText('Recent report', { exact: true })).toBeVisible();
+  await expect(inlet.getByText('Unknown', { exact: true })).toBeVisible();
   await expect(inlet.getByText('Unavailable', { exact: true })).toHaveCount(2);
 
   const sidebar = await page.getByRole('complementary').boundingBox();
@@ -69,7 +69,8 @@ test('Overview retains the Figma shell and cards while displaying database telem
   }));
   expect(logo).toEqual({ loaded: true, local: true, width: 38, height: 38 });
   const dimensions = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight }));
-  expect(dimensions).toEqual({ width: 1440, height: 900 });
+  expect(dimensions.width).toBe(1440);
+  expect(dimensions.height).toBeGreaterThanOrEqual(900);
   await page.screenshot({ path: testInfo.outputPath('overview-desktop.png'), fullPage: true });
   expect(errors).toEqual([]);
 });

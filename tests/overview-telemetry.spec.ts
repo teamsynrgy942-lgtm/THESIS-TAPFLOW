@@ -15,7 +15,7 @@ test('loading and empty records do not invent zero readings or inactive command 
     await expect(page.getByText('Inactive', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('article', { name: 'Room 1', exact: true }).locator('dd')).toHaveText(Array(4).fill('Loading…'));
   } finally { release(); }
-  await expect(page.getByText('No recent data', { exact: true })).toHaveCount(4);
+  await expect(page.getByText('Missing Data', { exact: true })).toHaveCount(4);
   await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(2);
   await expect(page.getByText('Unknown', { exact: true })).toHaveCount(12);
   await expect(page.getByText('No Flow', { exact: true })).toHaveCount(0);
@@ -44,14 +44,14 @@ test('heartbeat freshness, nullable values, and partial permission errors remain
   await expect(main.getByText('Refresh failed', { exact: true })).toBeVisible();
   await expect(page.getByText('Some readings could not be refreshed.')).toBeVisible();
   const first = page.getByRole('article', { name: 'Room 1', exact: true });
-  await expect(first.getByText('Recent report', { exact: true })).toBeVisible();
-  await expect(first.locator('dd')).toHaveText(['Unknown', 'Inactive', 'Open', 'Unknown']);
-  await expect(first.locator('time')).toHaveCount(0);
+  await expect(first.locator('.status-badge')).toHaveText('ON');
+  await expect(first.locator('dd')).toHaveText(['Unknown', 'Inactive', 'ON', 'Unknown']);
+  await expect(first.locator('time')).toHaveAttribute('datetime', recent);
   const second = page.getByRole('article', { name: 'Room 2', exact: true });
-  await expect(second.getByText('Room status stale', { exact: true })).toBeVisible();
+  await expect(second.getByText('Stale', { exact: true })).toBeVisible();
   await expect(second.locator('dd')).toHaveText(['No Flow', 'Unknown', 'Unknown', 'Unknown']);
   const third = page.getByRole('article', { name: 'Room 3', exact: true });
-  await expect(third.getByText('Recent report', { exact: true })).toBeVisible();
+  await expect(third.getByText('Unknown', { exact: true }).first()).toBeVisible();
   await expect(third.locator('dd')).toHaveText(['No Flow', 'Unknown', 'Unknown', 'Unknown']);
   await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
 });
@@ -121,12 +121,12 @@ test('partial refresh failures show each source error and recover to empty witho
   });
   await page.clock.runFor(20_000);
   await expect(page.getByText('Some readings could not be refreshed.')).toBeVisible();
-  await expect(first.locator('dd')).toHaveText(['Unknown', 'Active', 'Closed', 'Off']);
+  await expect(first.locator('dd')).toHaveText(['Unknown', 'Active', 'OFF', 'OFF']);
   await expect(page.getByRole('article', { name: 'Room 2', exact: true }).getByText('Flow Detected', { exact: true })).toBeVisible();
   failing = false;
   await page.clock.runFor(20_000);
   await expect(page.getByText('Some readings could not be refreshed.')).toHaveCount(0);
-  await expect(page.getByText('No recent data', { exact: true })).toHaveCount(4);
+  await expect(page.getByText('Missing Data', { exact: true })).toHaveCount(4);
   await expect(page.getByText('Unknown', { exact: true })).toHaveCount(12);
 });
 
@@ -157,7 +157,7 @@ test('20-second polling refreshes records, retains failed samples, ages freshnes
   await expect(page.getByText('Some readings could not be refreshed.')).toBeVisible();
   await expect(main.getByText('1.50', { exact: true })).toBeVisible();
   await page.clock.runFor(120_000);
-  await expect(main.getByText('No recent data', { exact: true })).toBeVisible();
+  await expect(main.getByText('Stale', { exact: true })).toBeVisible();
   await expect(main.getByText('Unknown', { exact: true })).toBeVisible();
   await expect(main.getByText('L/min', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: /^Alerts/ }).click();

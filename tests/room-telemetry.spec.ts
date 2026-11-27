@@ -42,11 +42,11 @@ test('selected room uses authenticated bounded reads and charts raw pulse histor
   });
   await page.goto('/rooms/room-2');
   const metrics = page.getByRole('region', { name: 'Room 2 reported metrics' });
-  await expect(metrics.getByRole('group', { name: 'Water flow activity' })).toContainText('Flow Detected');
+  await expect(metrics.getByRole('group', { name: 'Raw pulses' })).toContainText('31 pulses');
   await expect(metrics.getByText('Active', { exact: true })).toBeVisible();
-  await expect(metrics.getByText('Closed', { exact: true })).toBeVisible();
+  await expect(metrics.getByText('OFF', { exact: true })).toBeVisible();
   await expect(metrics.getByText('Unknown', { exact: true })).toBeVisible();
-  await expect(metrics.getByText(/31 pulses|15000 ms|Not calibrated/)).toHaveCount(0);
+  await expect(metrics.getByText(/15000 ms|Not calibrated|L\/min/)).toHaveCount(0);
   await expect(page.getByRole('group', { name: '3 pulse measurements; pulses per sample, by received timestamp' })).toBeVisible();
   await expect(page.locator('.rd-flow__series circle')).toHaveCount(3);
   const latestPoint = page.getByRole('button', { name: /31 pulses, 15000 ms measurement interval/ });
@@ -72,13 +72,14 @@ test('Room Details distinguishes loading and empty records without assuming zero
   try {
     await page.goto('/rooms/room-1');
     await expect(page.getByText('Loading pulse measurements…', { exact: true })).toBeVisible();
-    for (const label of ['Water flow activity', 'RFID Session', 'Valve Command', 'Light Command']) {
+    for (const label of ['Raw pulses', 'RFID Session', 'Valve Command', 'Light Command']) {
       await expect(page.getByRole('group', { name: label, exact: true }).getByText('Loading…', { exact: true })).toBeVisible();
     }
   } finally { release(); }
   await expect(page.getByText('No measurements during this period', { exact: true })).toBeVisible();
-  await expect(page.getByText('No recent data', { exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Room 1 reported metrics' }).getByText('Unknown', { exact: true })).toHaveCount(4);
+  await expect(page.locator('.rd-room-status')).toContainText('Missing Data');
+  await expect(page.getByRole('group', { name: 'Raw pulses', exact: true })).toContainText('Missing data');
+  await expect(page.getByRole('region', { name: 'Room 1 reported metrics' }).getByText('Unknown', { exact: true })).toHaveCount(3);
   await expect(page.locator('.rd-pulse-history')).toHaveCount(0);
   await expect(page.locator('.rd-flow__series')).toHaveCount(0);
   await expect(page.getByText('0.00', { exact: true })).toHaveCount(0);
@@ -101,17 +102,17 @@ test('room reporting uses the heartbeat first and never treats unrelated updates
     }
   });
   await page.goto('/rooms/room-1');
-  await expect(page.getByText('Room status stale', { exact: true })).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Water flow activity' })).toContainText('No Flow');
+  await expect(page.locator('.rd-room-status')).toContainText('Stale');
+  await expect(page.getByRole('group', { name: 'Raw pulses' })).toContainText('0 pulses');
   for (const name of ['RFID Session', 'Valve Command', 'Light Command']) {
     await expect(page.getByRole('group', { name })).toContainText('Unknown');
   }
   await page.getByRole('navigation', { name: 'Select room' }).getByRole('link', { name: 'Room 2', exact: true }).click();
-  await expect(page.getByText('Recent report', { exact: true })).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Water flow activity' })).toContainText('Unknown');
-  await expect(page.getByRole('group', { name: 'Valve Command' })).toContainText('Open');
+  await expect(page.locator('.rd-room-status')).toContainText('ON');
+  await expect(page.getByRole('group', { name: 'Raw pulses' })).toContainText('Unknown');
+  await expect(page.getByRole('group', { name: 'Valve Command' })).toContainText('ON');
   await page.getByRole('navigation', { name: 'Select room' }).getByRole('link', { name: 'Room 3', exact: true }).click();
-  await expect(page.getByText('No recent data', { exact: true })).toBeVisible();
+  await expect(page.locator('.rd-room-status')).toContainText('Stale');
   await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('group', { name: 'Light Command' })).toContainText('Unknown');
 });
@@ -145,19 +146,19 @@ test('20-second refresh retains labeled transient failures, clears denied histor
   await expect(page.getByRole('alert').filter({ hasText: 'Last known records shown.' })).toHaveCount(2);
   await expect(page.getByRole('button', { name: /\b22 pulses\b/ })).toBeVisible();
   await page.clock.runFor(120_000);
-  await expect(page.getByText('No recent data', { exact: true })).toBeVisible();
+  await expect(page.locator('.rd-room-status')).toContainText('Stale');
   mode = 'permission';
   await page.clock.runFor(20_000);
   await expect(page.getByRole('alert')).toHaveCount(2);
   for (const error of await page.getByRole('alert').all()) await expect(error).toContainText('Access denied');
   await expect(page.locator('.rd-flow__series')).toHaveCount(0);
   await expect(page.locator('.rd-pulse-history')).toHaveCount(0);
-  await expect(page.getByRole('group', { name: 'Water flow activity' })).toContainText('Unknown');
+  await expect(page.getByRole('group', { name: 'Raw pulses' })).toContainText('Missing data');
   mode = 'empty';
   await page.clock.runFor(20_000);
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByText('No measurements during this period', { exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Room 1 reported metrics' }).getByText('Unknown', { exact: true })).toHaveCount(4);
+  await expect(page.getByRole('region', { name: 'Room 1 reported metrics' }).getByText('Unknown', { exact: true })).toHaveCount(3);
   await page.getByRole('link', { name: 'View Alerts', exact: true }).click();
   await expect(page).toHaveURL('/alerts');
   const before = flowReads;

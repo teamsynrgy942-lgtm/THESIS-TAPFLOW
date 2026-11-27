@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import { describeSupabaseError } from '../../lib/supabase-error';
 import type { AlertRecord } from './alert-model';
-import { parseR1Alert, R1_ALERT_CODE, R1_ALERT_TABLE } from './r1-alert-model';
+import { parseStoredAlert, R1_ALERT_TABLE } from './r1-alert-model';
 
 const PAGE_SIZE = 1000;
 const AUTH_TIMEOUT_MS = 15_000;
@@ -128,7 +128,6 @@ export async function readR1Alerts(signal: AbortSignal): Promise<AlertRecord[]> 
     signal.throwIfAborted();
     const { data, error, status, count } = await Promise.resolve(supabase.schema('public').from(R1_ALERT_TABLE)
       .select(R1_ALERT_SELECT, offset === 0 ? { count: 'exact' } : {})
-      .eq('code', R1_ALERT_CODE)
       .order('detected_at', { ascending: false }).order('id', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
       .retry(false)
@@ -153,7 +152,7 @@ export async function readR1Alerts(signal: AbortSignal): Promise<AlertRecord[]> 
       lastEmptyAccount = session.userId;
       console.warn('[TapFlow R1] No rows visible to the verified session', {
         projectHost: r1ProjectHost, ...session, httpStatus: status, visibleCount: count,
-        schema: 'public', table: R1_ALERT_TABLE, code: R1_ALERT_CODE,
+        schema: 'public', table: R1_ALERT_TABLE, codeFilter: null,
         statusFilter: null,
         explanation: 'An empty SELECT cannot distinguish missing records from RLS filtering. Compare the project and Auth UID with the SQL review.',
       });
@@ -167,7 +166,7 @@ export async function readR1Alerts(signal: AbortSignal): Promise<AlertRecord[]> 
 
     const previousSize = records.size;
     for (const row of data) {
-      const alert = parseR1Alert(row);
+      const alert = parseStoredAlert(row);
       if (!alert) throw new R1AlertReadError('The alert log returned an unreadable record.');
       records.set(alert.id, alert);
     }

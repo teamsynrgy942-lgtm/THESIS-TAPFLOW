@@ -84,17 +84,14 @@ export function RoomPulseChart({ readings, now, range, onRangeChange }: {
   return <div className="rd-pulse-chart">
     <div className="rd-pulse-chart__controls">
       <p className="rd-pulse-chart__unit">Pulses per sample</p>
-      <div className="rd-pulse-chart__range">
-        <label htmlFor={rangeId}>Time range</label>
-        <select id={rangeId} value={range} onChange={(event) => {
-          const selected = pulseChartRanges.find((option) => option.id === event.target.value);
-          if (selected) {
+      <div className="rd-pulse-chart__range" role="radiogroup" aria-label="Time range">
+        {pulseChartRanges.map((option) => <label key={option.id}>
+          <input type="radio" name={rangeId} value={option.id} checked={range === option.id} onChange={() => {
             setActivePoint(null);
-            onRangeChange(selected.id);
-          }
-        }}>
-          {pulseChartRanges.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-        </select>
+            onRangeChange(option.id);
+          }} />
+          {option.shortLabel}
+        </label>)}
       </div>
     </div>
     {readings.error && <p className="rd-sample-note rd-sample-note--error" role="alert">
@@ -128,6 +125,7 @@ export function RoomPulseChart({ readings, now, range, onRangeChange }: {
         <time key={timestamp} dateTime={new Date(timestamp).toISOString()}>{formatPulseTimestamp(timestamp, range)}</time>)}
     </div>
     <p className="rd-pulse-chart__caption">Philippine Time (PHT) · Gaps over 45 seconds are left blank.</p>
+    {chart.gaps.length > 0 && <p className="rd-pulse-chart__gap">No data (missing samples). Those intervals are not drawn as zero pulses.</p>}
     {chart.otherIntervals > 0 && <p className="rd-sample-note">The chart uses 15-second samples. See recorded samples for other intervals.</p>}
     {chart.invalidSamples > 0 && <p className="rd-sample-note">Samples without valid pulse counts are excluded.</p>}
   </div>;

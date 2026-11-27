@@ -80,6 +80,10 @@ export const test = base.extend<{ authenticated: boolean; auth: MockAuth; realti
     });
 
     // Overview, Room Details, and any secondary tabs keep their reads local.
+    await context.route('**/rest/v1/', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      await route.fulfill({ json: { paths: {} } });
+    });
     await context.route('**/rest/v1/**', async (route) => {
       expect(route.request().method()).toBe('GET');
       const url = new URL(route.request().url());
@@ -97,6 +101,8 @@ export const test = base.extend<{ authenticated: boolean; auth: MockAuth; realti
         })) });
       } else if (url.pathname.endsWith('/tapflow_r1_alerts')) {
         await route.fulfill({ json: [] });
+      } else if (url.pathname === '/rest/v1' || url.pathname === '/rest/v1/') {
+        await route.fulfill({ json: { paths: {} } });
       } else {
         await route.abort();
         throw new Error('Unexpected telemetry table');

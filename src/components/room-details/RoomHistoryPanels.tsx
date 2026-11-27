@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
-import type { DashboardAlert } from '../../features/dashboard/dashboard-model';
+import { formatAlertTimestamp, severityLabels } from '../../features/alerts/alert-model';
+import type { AlertRecord } from '../../features/alerts/alert-model';
 import { pulseChartWindow } from '../../features/rooms/room-telemetry';
 import type { PulseChartRange, RoomTelemetry } from '../../features/rooms/room-telemetry';
 import { formatTelemetryTime, telemetryErrorLabel } from '../../features/overview/overview-telemetry';
@@ -7,7 +8,6 @@ import { RoomPulseChart } from './RoomPulseChart';
 import { RoomDetailPanel, RoomEmptyState } from './RoomDetailPanel';
 import { RoomIcon } from './RoomIcon';
 import { RoomDetailBadge } from './RoomDetailBadge';
-import { severityLabels } from '../../features/alerts/alert-model';
 
 export function WaterFlowPanel({ telemetry, now, chartRange, onChartRangeChange }: {
   telemetry: RoomTelemetry; now: number; chartRange: PulseChartRange; onChartRangeChange: (range: PulseChartRange) => void;
@@ -19,6 +19,7 @@ export function WaterFlowPanel({ telemetry, now, chartRange, onChartRangeChange 
 
   return (
     <RoomDetailPanel id="room-flow-title" title="Water flow" className="rd-flow">
+      <p className="rd-flow__note">Raw pulses per sample. Room sensors are not converted to liters.</p>
       <RoomPulseChart readings={chartReadings} now={now} range={chartRange} onRangeChange={onChartRangeChange} />
       {telemetry.readings.error && <p className="rd-sample-note rd-sample-note--error" role="alert">
         Recorded samples: {telemetryErrorLabel(telemetry.readings.error)}
@@ -39,12 +40,19 @@ export function WaterFlowPanel({ telemetry, now, chartRange, onChartRangeChange 
   );
 }
 
-export function RelatedAlertsPanel({ alerts }: { alerts: readonly DashboardAlert[] }) {
+export function RelatedAlertsPanel({ alerts }: { alerts: readonly AlertRecord[] }) {
   return (
     <RoomDetailPanel id="room-alerts-title" title="Related alerts" className="rd-alerts" action={<Link className="rd-alerts-link" to="/alerts">View Alerts<RoomIcon name="arrowRight" /></Link>}>
       {alerts.length ? (
         <ul className="rd-records">
-          {alerts.map((alert) => <li key={alert.id}><RoomDetailBadge tone="warning">{alert.severity ? severityLabels[alert.severity] : 'Active'}</RoomDetailBadge><strong>{alert.message}</strong></li>)}
+          {alerts.map((alert) => <li key={alert.id}>
+            <RoomDetailBadge tone="warning">{alert.severity ? severityLabels[alert.severity] : 'Active'}</RoomDetailBadge>
+            <div>
+              <strong>{alert.title ?? alert.detectionRule}</strong>
+              <code>{alert.detectionRule}</code>
+              <time dateTime={alert.timestamp}>{formatAlertTimestamp(alert.timestamp)} PHT</time>
+            </div>
+          </li>)}
         </ul>
       ) : <RoomEmptyState icon="relatedAlerts" title="No recorded alerts" />}
     </RoomDetailPanel>

@@ -12,7 +12,7 @@ async function expectCommands(room: Locator, overview: boolean, values: string[]
 
 function flowActivity(room: Locator, overview: boolean) {
   return overview ? room.locator('.room-card__devices dd').first()
-    : room.getByRole('group', { name: 'Water flow activity', exact: true }).locator('strong');
+    : room.getByRole('group', { name: 'Raw pulses', exact: true }).locator('strong');
 }
 
 for (const routePath of ['/overview', '/rooms/room-1']) {
@@ -51,16 +51,16 @@ for (const routePath of ['/overview', '/rooms/room-1']) {
       await page.clock.runFor(ms);
       await expect(checkTime).not.toHaveAttribute('datetime', previous!);
     }
-    await expectCommands(room, overview, ['Active', 'Open', 'On']);
-    await expect(activity).toHaveText('Flow Detected');
-    await expect(report.getByText('Recent report', { exact: true })).toBeVisible();
+    await expectCommands(room, overview, ['Active', 'ON', 'ON']);
+    await expect(activity).toHaveText(overview ? 'Flow Detected' : '42 pulses');
+    await expect(report.getByText('ON', { exact: true }).first()).toBeVisible();
     for (let tick = 0; tick < 7; tick++) {
       await advancePolling(20_000);
     }
     await expectCommands(room, overview, ['Unknown', 'Unknown', 'Unknown']);
-    await expect(report.getByText('Room status stale', { exact: true })).toBeVisible();
-    await expect(activity).toHaveText('Flow Detected');
-    if (overview) await expect(page.getByRole('region', { name: 'Main water inlet' }).getByText('Recent report', { exact: true })).toBeVisible();
+    await expect(report.getByText('Stale', { exact: true })).toBeVisible();
+    await expect(activity).toHaveText(overview ? 'Flow Detected' : '42 pulses');
+    if (overview) await expect(page.getByRole('region', { name: 'Main water inlet' }).locator('.status-badge')).toHaveText('ON');
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
     await page.screenshot({ path: testInfo.outputPath('stale-command-states-mobile.png'), fullPage: true });
@@ -69,10 +69,10 @@ for (const routePath of ['/overview', '/rooms/room-1']) {
     await advancePolling(120_000);
     await expectCommands(room, overview, ['Unknown', 'Unknown', 'Unknown']);
     await expect(activity).toHaveText('Unknown');
-    await expect(report.getByText('No recent data', { exact: true })).toBeVisible();
+    await expect(report.getByText('Stale', { exact: true })).toBeVisible();
     if (overview) {
       const main = page.getByRole('region', { name: 'Main water inlet' });
-      await expect(main.getByText('No recent data', { exact: true })).toBeVisible();
+      await expect(main.locator('.status-badge')).toHaveText('Stale');
       await expect(main.locator('.inlet-card__metric').first().locator('strong')).toHaveText('Unknown');
       await expect(main.getByText('L/min', { exact: true })).toHaveCount(0);
     } else {
@@ -81,13 +81,13 @@ for (const routePath of ['/overview', '/rooms/room-1']) {
     }
     uploadingFlow = true;
     await advancePolling(20_000);
-    await expect(activity).toHaveText('Flow Detected');
+    await expect(activity).toHaveText(overview ? 'Flow Detected' : '42 pulses');
     await expectCommands(room, overview, ['Unknown', 'Unknown', 'Unknown']);
-    if (overview) await expect(page.getByRole('region', { name: 'Main water inlet' }).getByText('Recent report', { exact: true })).toBeVisible();
+    if (overview) await expect(page.getByRole('region', { name: 'Main water inlet' }).locator('.status-badge')).toHaveText('ON');
     heartbeat = new Date(clock - 1000).toISOString();
     await advancePolling(20_000);
-    await expectCommands(room, overview, ['Active', 'Open', 'On']);
-    await expect(report.getByText('Recent report', { exact: true })).toBeVisible();
+    await expectCommands(room, overview, ['Active', 'ON', 'ON']);
+    await expect(report.getByText('ON', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('Offline', { exact: true })).toHaveCount(0);
   });
 
@@ -103,7 +103,7 @@ for (const routePath of ['/overview', '/rooms/room-1']) {
     await page.goto(routePath);
     const room = page.getByRole('article', { name: 'Room 1', exact: true });
     await expectCommands(room, overview, ['Unknown', 'Unknown', 'Unknown']);
-    await expect(flowActivity(room, overview)).toHaveText('No Flow');
-    await expect((overview ? room : page.locator('.rd-room-status')).getByText('Recent report', { exact: true })).toBeVisible();
+    await expect(flowActivity(room, overview)).toHaveText(overview ? 'No Flow' : '0 pulses');
+    await expect((overview ? room : page.locator('.rd-room-status')).getByText('Unknown', { exact: true }).first()).toBeVisible();
   });
 }

@@ -118,6 +118,59 @@ export function flowActivityLabel(reading: LatestRecord<FlowReading>, now: numbe
   return pulses > 0 ? 'Flow Detected' : 'No Flow';
 }
 
+export type PresenceLabel = 'ON' | 'OFF' | 'Unknown' | 'Stale' | 'Missing Data' | 'Loading…' | 'Refresh failed';
+
+export function presenceTone(label: PresenceLabel): 'success' | 'idle' | 'warning' | 'offline' | 'danger' | 'info' {
+  if (label === 'ON') return 'success';
+  if (label === 'Stale' || label === 'Refresh failed') return 'warning';
+  if (label === 'Missing Data') return 'danger';
+  if (label === 'Unknown') return 'info';
+  return 'idle';
+}
+
+/** Card badge. A stale or missing report is never labeled ON or OFF. */
+export function roomPresenceLabel(status: LatestRecord<RoomStatus>, reading: LatestRecord<FlowReading>, now: number): PresenceLabel {
+  if (!reading.loaded || !status.loaded) return 'Loading…';
+  const reportedAt = roomReportingTime(status.value, reading.value);
+  if ((reading.error || status.error) && !reportedAt) return 'Refresh failed';
+  if (!reportedAt) return 'Missing Data';
+  const freshness = reportingFreshness(reportedAt, now);
+  if (freshness === 'unknown') return 'Unknown';
+  const heartbeatStale = reportingFreshness(status.value?.timestamps.last_seen_at, now) === 'stale'
+    && reportingFreshness(reading.value?.received_at, now) === 'recent';
+  if (freshness === 'stale' || heartbeatStale) return 'Stale';
+  const flow = flowActivityLabel(reading, now);
+  const heartbeatRecent = roomStatusIsRecent(status.value, now);
+  const inUse = flow === 'Flow Detected' || (heartbeatRecent && (
+    status.value?.rfid_active === true || status.value?.valve_commanded_on === true || status.value?.bulb_commanded_on === true
+  ));
+  if (inUse) return 'ON';
+  const idle = flow === 'No Flow' && heartbeatRecent
+    && status.value?.rfid_active === false && status.value?.valve_commanded_on === false && status.value?.bulb_commanded_on === false;
+  return idle ? 'OFF' : 'Unknown';
+}
+
+export function inletPresenceLabel(reading: LatestRecord<FlowReading>, now: number): PresenceLabel {
+  if (!reading.loaded) return 'Loading…';
+  const reportedAt = reading.value?.received_at ?? null;
+  if (reading.error && !reportedAt) return 'Refresh failed';
+  if (!reportedAt) return 'Missing Data';
+  const freshness = reportingFreshness(reportedAt, now);
+  if (freshness === 'unknown') return 'Unknown';
+  if (freshness === 'stale') return 'Stale';
+  return currentFlowDisplay(reading, now).unit ? 'ON' : 'Unknown';
+}
+
+/** Latest raw room pulses. Zero is a measurement; a missing or stale sample is not shown as zero. */
+export function rawPulseLabel(reading: LatestRecord<FlowReading>, now: number): string {
+  if (!reading.loaded) return 'Loading…';
+  const reportedAt = reading.value?.received_at;
+  const pulses = reading.value?.pulses;
+  if (reportingFreshness(reportedAt, now) !== 'recent') return reportedAt ? 'Unknown' : 'Missing data';
+  if (typeof pulses !== 'number' || !Number.isInteger(pulses) || pulses < 0) return 'Missing data';
+  return `${pulses} pulses`;
+}
+
 export function formatTelemetryTime(timestamp: string | null | undefined): string {
   if (!timestamp || !Number.isFinite(Date.parse(timestamp))) return 'Unavailable';
   return new Intl.DateTimeFormat('en-PH', {

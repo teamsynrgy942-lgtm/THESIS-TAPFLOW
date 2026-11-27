@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import type { AlertRecord } from './alert-model';
+import { selectNewNotificationIds } from './alert-model';
 import { readR1Alerts, R1AlertReadError } from './r1-alert-service';
 import { subscribeToR1Alerts } from './r1-alert-realtime';
 import type { R1DatabaseEvent, R1RealtimeState } from './r1-alert-realtime';
@@ -65,8 +66,7 @@ export function useR1AlertFeed() {
         }
         const active = records.filter((record) => record.status === 'active');
         const activeIds = new Set(active.map((record) => record.id));
-        const newIds = active.filter(({ id }) => !notifiedIds.has(id)
-          && (insertedIds.has(id) || (hasSnapshot && !knownIds.has(id)))).map(({ id }) => id);
+        const newIds = selectNewNotificationIds(records, knownIds, notifiedIds, insertedIds, hasSnapshot);
         for (const id of newIds) notifiedIds.add(id);
         for (const record of records) knownIds.add(record.id);
         for (const id of reportedInserts) insertedIds.delete(id);
@@ -117,7 +117,9 @@ export function useR1AlertFeed() {
           // Catch up once at the start of an outage, then let the polling interval take over.
           void refresh('outage');
         }
-        if (status.status === 'unavailable' && status.reason === 'closed' && restartTimer === undefined) {
+        const recoverable = status.status === 'unavailable'
+          && (status.reason === 'closed' || status.reason === 'timeout' || status.reason === 'channel');
+        if (recoverable && restartTimer === undefined) {
           restartTimer = window.setTimeout(() => {
             restartTimer = undefined;
             unsubscribe?.();

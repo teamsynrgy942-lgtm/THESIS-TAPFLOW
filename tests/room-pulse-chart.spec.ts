@@ -42,9 +42,9 @@ test('chart defaults to 30 minutes, separates sessions, switches ranges, and pre
     sample(now, 30_000, 20, 6), sample(now, 15_000, 0, 7),
   ]);
   await page.goto('/rooms/room-1');
-  const range = page.getByLabel('Time range', { exact: true });
+  const range = page.getByRole('radiogroup', { name: 'Time range', exact: true });
   const curve = page.locator('.rd-flow__series .recharts-line-curve');
-  await expect(range).toHaveValue('30m');
+  await expect(range.getByRole('radio', { name: '30 min', exact: true })).toBeChecked();
   await expect(page.locator('.rd-flow__series circle')).toHaveCount(4);
   await expect(curve).toHaveAttribute('d', /^M[^ML]+L[^ML]+M[^ML]+L[^ML]+$/);
   const xs = await page.locator('.rd-flow__series circle').evaluateAll((points) => points.map((point) => Number(point.getAttribute('cx'))));
@@ -64,14 +64,14 @@ test('chart defaults to 30 minutes, separates sessions, switches ranges, and pre
   await expect(page.getByRole('tooltip')).toContainText('Raw pulses: 11');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveCount(0);
-  await range.selectOption('5m');
+  await range.getByRole('radio', { name: '5 min', exact: true }).check();
   await expect(page.locator('.rd-flow__series circle')).toHaveCount(2);
   await expect(page.getByRole('button', { name: /\b0 pulses\b/ })).toBeVisible();
   await expect(curve).toHaveAttribute('d', /^M[^ML]+L[^ML]+$/);
-  await range.selectOption('1h');
+  await range.getByRole('radio', { name: '1 hour', exact: true }).check();
   await expect(page.locator('.rd-flow__series circle')).toHaveCount(5);
   await expect(curve).toHaveAttribute('d', /^M[^ML]+M[^ML]+L[^ML]+M[^ML]+L[^ML]+$/);
-  await range.selectOption('24h');
+  await range.getByRole('radio', { name: '24 hours', exact: true }).check();
   await expect(page.locator('.rd-flow__series circle')).toHaveCount(6);
   await expect(curve).toHaveAttribute('d', /^M[^ML]+M[^ML]+M[^ML]+L[^ML]+M[^ML]+L[^ML]+$/);
   await page.getByText('Recorded samples (7)', { exact: true }).click();
@@ -85,9 +85,9 @@ test('an empty selected period does not fall back to historical lines or rescale
   await expect(page.getByText('No measurements during this period', { exact: true })).toBeVisible();
   await expect(page.locator('.rd-flow__series')).toHaveCount(0);
   await expect(page.getByText('The chart uses 15-second samples. See recorded samples for other intervals.')).toBeVisible();
-  await page.getByLabel('Time range', { exact: true }).selectOption('1h');
+  await page.getByRole('radio', { name: '1 hour', exact: true }).check();
   await expect(page.getByText('No measurements during this period', { exact: true })).toBeVisible();
-  await page.getByLabel('Time range', { exact: true }).selectOption('24h');
+  await page.getByRole('radio', { name: '24 hours', exact: true }).check();
   await expect(page.locator('.rd-flow__series circle')).toHaveCount(1);
   await expect(page.locator('.rd-flow__series .recharts-line-curve')).toHaveCount(0);
   await page.getByText('Recorded samples (3)', { exact: true }).click();
@@ -106,7 +106,7 @@ test('24-hour queries page through API row caps instead of truncating the chart 
   });
   await page.goto('/rooms/room-1');
   await expect(page.locator('.rd-flow__series circle')).toHaveCount(120);
-  await page.getByLabel('Time range', { exact: true }).selectOption('24h');
+  await page.getByRole('radio', { name: '24 hours', exact: true }).check();
   await expect(page.locator('.rd-flow__series circle')).toHaveCount(1105);
   expect(offsets).toEqual([0, 500, 1000]);
   await expect(page.locator('.rd-flow__series .recharts-line-curve')).toHaveAttribute('d', /^M[^M]+$/);
@@ -150,10 +150,10 @@ test('changing range aborts older chart requests and preserves the 20-second ref
   try {
     await page.goto('/rooms/room-1');
     await expect.poll(() => pending).toBe(1);
-    await page.getByLabel('Time range', { exact: true }).selectOption('1h');
+    await page.getByRole('radio', { name: '1 hour', exact: true }).check();
     await expect(page.locator('.rd-flow__series circle')).toHaveCount(1);
   } finally { release(); }
-  await expect(page.getByLabel('Time range', { exact: true })).toHaveValue('1h');
+  await expect(page.getByRole('radio', { name: '1 hour', exact: true })).toBeChecked();
   await page.clock.runFor(20_000);
   await expect.poll(() => hourlyReads).toBe(2);
   await expect(page.locator('.rd-flow__series circle')).toHaveCount(1);
