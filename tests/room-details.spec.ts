@@ -1,9 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures/auth';
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
 for (const roomNumber of [1, 2, 3]) {
-  test(`Room ${roomNumber} matches the Figma layout with demo values and honest empty states`, async ({ page }, testInfo) => {
+  test(`Room ${roomNumber} shows compact telemetry in the TapFlow desktop layout`, async ({ page }, testInfo) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
@@ -12,45 +12,44 @@ for (const roomNumber of [1, 2, 3]) {
     await page.evaluate(() => document.fonts.ready);
     await expect(page).toHaveTitle('TapFlow | Room Details');
     await expect(page.getByRole('heading', { name: 'Room Details', exact: true })).toBeVisible();
-    await expect(page.getByText('Demo data', { exact: true })).toBeVisible();
-    await expect(page.getByText('Last updated: No live data')).toBeVisible();
-    await expect(page.getByText('Connectivity unknown', { exact: true })).toBeVisible();
+    await expect(page.getByText('Recent report', { exact: true })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Select room' }).getByRole('link', { name: `Room ${roomNumber}`, exact: true })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('article', { name: `Room ${roomNumber}`, exact: true })).toBeVisible();
-    const metrics = page.getByRole('region', { name: `Room ${roomNumber} demo metrics` });
-    for (const value of ['0.00', 'Inactive', 'Closed', 'Off']) await expect(metrics.getByText(value, { exact: true })).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Water flow', exact: true }).getByText('No flow readings yet')).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Water usage history', exact: true }).getByText('No usage history yet')).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Recent activity', exact: true }).getByText('No recent activity')).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Related alerts', exact: true }).getByText('No active alerts')).toBeVisible();
-    await expect(page.locator('.rd-flow__series')).toHaveCount(0);
+    const metrics = page.getByRole('region', { name: `Room ${roomNumber} reported metrics` });
+    await expect(metrics.getByRole('group')).toHaveCount(4);
+    await expect(metrics.getByRole('group', { name: 'Water flow activity' })).toContainText('Flow Detected');
+    await expect(metrics.locator('time')).toHaveCount(0);
+    for (const value of [roomNumber === 1 ? 'Active' : 'Inactive', roomNumber === 2 ? 'Open' : 'Closed', roomNumber === 3 ? 'On' : 'Off']) await expect(metrics.getByText(value, { exact: true })).toBeVisible();
+    await expect(page.getByText(/Not calibrated|Used today|Connectivity unknown/)).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Related alerts', exact: true }).getByText('No recorded alerts')).toBeVisible();
+    await expect(page.locator('.rd-flow__series')).toHaveCount(1);
 
     const bounds = await page.locator('.rd-panel').evaluateAll((panels) => panels.map((panel) => {
       const { x, y, width, height } = panel.getBoundingClientRect();
       return { x, y, width, height };
     }));
-    expect(bounds).toHaveLength(4);
+    expect(bounds).toHaveLength(2);
     expect(bounds[0].x).toBe(264);
-    expect(bounds[0].y).toBeCloseTo(360.89, 0);
-    expect(bounds[0].width).toBeCloseTo(632.24, 0);
-    expect(bounds[0].height).toBeCloseTo(247.5, 0);
-    expect(bounds[1].x).toBeCloseTo(911.24, 0);
-    expect(bounds[2].y).toBeCloseTo(623.39, 0);
-    expect(bounds[3].y).toBeCloseTo(623.39, 0);
+    expect(bounds[0].width).toBeGreaterThan(bounds[1].width);
+    expect(bounds[0].height).toBeGreaterThanOrEqual(247.5);
+    expect(bounds[1].x).toBeCloseTo(bounds[0].x + bounds[0].width + 15, 0);
+    expect(bounds[1].y).toBe(bounds[0].y);
+    const cardRows = await metrics.getByRole('group').evaluateAll((cards) => cards.map((card) => card.getBoundingClientRect().y));
+    expect(new Set(cardRows).size).toBe(1);
     const sidebar = await page.getByRole('complementary').boundingBox();
     expect(sidebar!.width).toBe(232);
     await expect(page.getByText('Three-room prototype', { exact: true })).toHaveCount(0);
     const sidebarFooter = page.locator('.rd-sidebar-footer');
     await expect(sidebarFooter.locator('img')).toHaveCount(0);
     const footerBounds = await sidebarFooter.boundingBox();
-    expect(footerBounds).toEqual({ x: 22, y: 842, width: 188, height: 34 });
+    expect(footerBounds).toEqual({ x: 22, y: sidebar!.height - 58, width: 188, height: 34 });
     const topbar = await page.locator('.dashboard-topbar').boundingBox();
     expect(topbar!.height).toBe(69);
     const images = await page.locator('img').evaluateAll((elements: HTMLImageElement[]) => elements.map((image) => {
       const bounds = image.getBoundingClientRect();
       return { loaded: image.complete && image.naturalWidth > 0, local: new URL(image.src).origin === location.origin, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight, width: bounds.width, height: bounds.height };
     }));
-    expect(images).toHaveLength(16);
+    expect(images.length).toBeGreaterThan(4);
     for (const image of images) {
       expect(image.loaded).toBe(true);
       expect(image.local).toBe(true);
@@ -75,7 +74,7 @@ test('room selection updates the URL, data identity, active link, refresh, and b
   for (const roomNumber of [2, 3, 1]) {
     await selector.getByRole('link', { name: `Room ${roomNumber}`, exact: true }).click();
     await expect(page).toHaveURL(`/rooms/room-${roomNumber}`);
-    await expect(page.getByRole('region', { name: `Room ${roomNumber} demo metrics` })).toBeVisible();
+    await expect(page.getByRole('region', { name: `Room ${roomNumber} reported metrics` })).toBeVisible();
     await expect(selector.locator('[aria-current="page"]')).toHaveCount(1);
   }
   await page.reload();
@@ -103,10 +102,14 @@ for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }
     await page.setViewportSize(viewport);
     await page.goto('/rooms/room-3');
     await page.evaluate(() => document.fonts.ready);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
-    for (const title of ['Water flow', 'Water usage history', 'Recent activity', 'Related alerts']) {
+    for (const title of ['Water flow', 'Related alerts']) {
       await expect(page.getByRole('region', { name: title, exact: true })).toBeVisible();
     }
+    await page.getByText('Recorded samples (1)', { exact: true }).click();
+    await expect(page.getByRole('table', { name: 'Recorded pulse measurements' })).toBeVisible();
+    const history = page.getByRole('region', { name: 'Pulse sample history' });
+    expect(await history.evaluate((region) => region.scrollWidth <= region.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
     if (viewport.width === 390) await page.screenshot({ path: testInfo.outputPath('room-details-mobile.png'), fullPage: true });
     await page.getByRole('navigation', { name: 'Select room' }).getByRole('link', { name: 'Room 2', exact: true }).click();
     await expect(page).toHaveURL('/rooms/room-2');

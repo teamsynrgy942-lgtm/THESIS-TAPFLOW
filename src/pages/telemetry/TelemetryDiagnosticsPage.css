@@ -1,0 +1,15 @@
+.telemetry-page { max-width: 1000px; margin: 0 auto; padding: 32px 24px 64px; color: var(--color-heading); line-height: 1.6; overflow-wrap: anywhere; }
+.telemetry-page h1 { font-size: clamp(26px, 5vw, 36px); }
+.telemetry-page h2 { margin-top: 0; font-size: 20px; }
+.telemetry-page a { color: var(--color-action); }
+.telemetry-page section { margin-top: 20px; padding: 20px; border: 1px solid var(--color-logo-border); border-radius: 10px; }
+.telemetry-page pre { overflow: auto; max-height: 440px; padding: 16px; background: #061321; border-radius: 6px; font-size: 13px; }
+.telemetry-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.telemetry-actions button { min-height: 44px; padding: 8px 16px; border: 1px solid var(--color-action-border); border-radius: 8px; background: var(--color-action); color: var(--color-ink); font-weight: 650; cursor: pointer; }
+.telemetry-actions button:disabled { opacity: 0.65; cursor: wait; }
+.telemetry-page :is(button, pre):focus-visible { outline: 3px solid var(--color-white); outline-offset: 3px; }
+.telemetry-error { padding: 16px; border: 1px solid #f2adb2; border-radius: 8px; background: #422536; color: #ffe5e7; }
+.telemetry-error p { margin-bottom: 0; }
+.telemetry-observations { max-width: 100%; overflow: auto; }
+.telemetry-observations table { min-width: 900px; width: 100%; border-collapse: collapse; font-size: 12px; }
+.telemetry-observations th, .telemetry-observations td { padding: 8px; border: 1px solid var(--color-logo-border); text-align: left; vertical-align: top; }

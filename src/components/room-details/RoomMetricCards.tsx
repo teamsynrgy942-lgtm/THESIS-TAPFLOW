@@ -1,30 +1,32 @@
-import type { Room } from '../../features/dashboard/dashboard-model';
-import { formatVolume } from '../../features/dashboard/dashboard-model';
+import type { LatestRecord } from '../../features/overview/overview-telemetry';
+import { currentCommandLabel, flowActivityLabel } from '../../features/overview/overview-telemetry';
+import type { FlowReading, RoomStatus, TelemetryRoom } from '../../features/telemetry/telemetry-types';
 import { RoomIcon } from './RoomIcon';
 import type { RoomIconName } from './RoomIcon';
 
-function RoomMetricCard({ label, value, unit, icon }: {
-  label: string; value: string; unit?: string; icon: RoomIconName;
+function RoomMetricCard({ label, value, icon }: {
+  label: string; value: string; icon: RoomIconName;
 }) {
   return (
     <div className="rd-metric" role="group" aria-label={label}>
       <span className="rd-metric__icon"><RoomIcon name={icon} /></span>
       <div className="rd-metric__copy">
         <span className="rd-metric__label">{label}</span>
-        <p className="rd-metric__value"><strong>{value}</strong>{unit && <span>{unit}</span>}</p>
+        <p className="rd-metric__value"><strong>{value}</strong></p>
       </div>
     </div>
   );
 }
 
-export function RoomMetricCards({ room }: { room: Room }) {
+export function RoomMetricCards({ room, reading, status, now }: {
+  room: TelemetryRoom; reading: LatestRecord<FlowReading>; status: LatestRecord<RoomStatus>; now: number;
+}) {
   return (
-    <section className="rd-metrics" aria-label={`${room.name} demo metrics`} aria-live="polite">
-      <RoomMetricCard label="Current flow" value={room.currentFlow.toFixed(2)} unit="L/min" icon="waterDrop" />
-      <RoomMetricCard label="Used today" value={formatVolume(room.usedToday)} unit="L" icon="usage" />
-      <RoomMetricCard label="RFID Session" value={room.rfidSession === 'active' ? 'Active' : 'Inactive'} icon="rfid" />
-      <RoomMetricCard label="Valve Command" value={room.valveCommand === 'open' ? 'Open' : 'Closed'} icon="valve" />
-      <RoomMetricCard label="Light Command" value={room.lightCommand === 'on' ? 'On' : 'Off'} icon="light" />
+    <section className="rd-metrics" aria-label={`${room.name} reported metrics`} aria-live="polite">
+      <RoomMetricCard label="Water flow activity" value={reading.loaded ? flowActivityLabel(reading, now) : 'Loading…'} icon="waterDrop" />
+      <RoomMetricCard label="RFID Session" value={currentCommandLabel(status, 'rfid_active', now, 'Active', 'Inactive')} icon="rfid" />
+      <RoomMetricCard label="Valve Command" value={currentCommandLabel(status, 'valve_commanded_on', now, 'Open', 'Closed')} icon="valve" />
+      <RoomMetricCard label="Light Command" value={currentCommandLabel(status, 'bulb_commanded_on', now, 'On', 'Off')} icon="light" />
     </section>
   );
 }

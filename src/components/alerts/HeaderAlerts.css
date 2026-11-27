@@ -1,0 +1,121 @@
+.dashboard-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  min-width: 0;
+}
+
+.dashboard-shell--room-details .dashboard-topbar--with-alerts {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.header-alerts { flex: 0 0 auto; }
+
+.header-alerts__bell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #d0ecfb;
+  border-radius: 10px;
+  background: #def2fd;
+  color: #0b365f;
+  cursor: pointer;
+}
+
+.header-alerts__bell:hover,
+.header-alerts__bell[aria-expanded='true'] { background: #cceafb; }
+.header-alerts__bell:focus-visible,
+.header-alerts__notice button:focus-visible { outline: 3px solid #007eae; outline-offset: 3px; }
+
+.header-alerts__icon {
+  width: 20px;
+  height: 20px;
+  background: currentColor;
+  mask: url('../../assets/figma/room-details/alerts.svg') center / contain no-repeat;
+}
+
+.header-alerts__count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ffbf16;
+  color: #092743;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.header-alerts__panel {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #d3dfe7;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 28px #09274326, 0 2px 5px #09274312;
+  color: #092743;
+}
+
+.header-alerts__heading {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid #dbe7ef;
+}
+
+.header-alerts__heading h2 { margin: 0; font-size: 22px; font-weight: 750; line-height: 1.3; }
+.header-alerts__body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.header-alerts__list { margin: 0; padding: 0 20px; list-style: none; }
+.header-alerts__list li { padding: 20px 0; }
+.header-alerts__list li + li { border-top: 1px solid #dbe7ef; }
+.header-alerts__row-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.header-alerts__row-heading h3 { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 700; line-height: 1.5; }
+.header-alerts__list p { margin: 6px 0 0; color: #526779; font-size: 14px; line-height: 1.5; }
+.dashboard-topbar .header-alerts__list time { display: block; width: auto; margin-top: 4px; color: #526779; font-size: 13px; line-height: 1.5; white-space: normal; }
+.header-alerts__list .header-alerts__telemetry { margin-top: 10px; font-style: italic; }
+
+.header-alerts__pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid #f4dcaa;
+  border-radius: 999px;
+  background: #fff5dd;
+  color: #855d09;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.header-alerts__pill::before { width: 6px; height: 6px; border-radius: 50%; background: currentColor; content: ''; }
+.header-alerts__notice { margin: 0; padding: 20px; color: #526779; font-size: 14px; line-height: 1.5; }
+.header-alerts__notice p { margin: 0; }
+.header-alerts__notice button { margin-top: 10px; padding: 5px 12px; border: 1px solid #c9e5f5; border-radius: 7px; background: #def2fd; color: #0b365f; font: inherit; cursor: pointer; }
+.header-alerts__footer { flex: 0 0 auto; margin: 0 12px; padding: 12px 0; border-top: 1px solid #dbe7ef; }
+.header-alerts__footer a { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 12px; border-radius: 10px; background: #e1f4fe; color: #0b4676; font-size: 15px; font-weight: 700; line-height: 1.5; text-decoration: none; }
+.header-alerts__footer a:hover { background: #cceafb; }
+.header-alerts__footer a span { font-size: 22px; line-height: 1; }
+
+@media (max-width: 800px) {
+  .dashboard-shell--room-details .dashboard-topbar--with-alerts { padding-top: 16px; padding-bottom: 16px; }
+}

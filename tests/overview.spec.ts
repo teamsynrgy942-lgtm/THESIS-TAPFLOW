@@ -1,8 +1,8 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures/auth';
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
-test('Overview matches the 1440 x 900 Figma geometry and initial demo values', async ({ page }, testInfo) => {
+test('Overview retains the Figma shell and cards while displaying database telemetry', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
@@ -11,23 +11,22 @@ test('Overview matches the 1440 x 900 Figma geometry and initial demo values', a
   await page.evaluate(() => document.fonts.ready);
   await expect(page).toHaveTitle('TapFlow | Overview');
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
-  await expect(page.getByText('All three rooms are idle.')).toBeVisible();
-  await expect(page.getByText('No active alerts', { exact: true })).toBeVisible();
-  await expect(page.getByText('Last update 10:30 AM PHT')).toBeVisible();
+  await expect(page.locator('.overview-check-time')).toContainText('Last checked');
 
   for (const roomNumber of [1, 2, 3]) {
     const card = page.getByRole('article', { name: `Room ${roomNumber}`, exact: true });
-    await expect(card.getByText('Idle', { exact: true })).toBeVisible();
-    await expect(card.getByText('Inactive', { exact: true })).toBeVisible();
-    await expect(card.getByText('Closed', { exact: true })).toBeVisible();
-    await expect(card.getByText('Off', { exact: true })).toBeVisible();
-    await expect(card.getByText('0.00', { exact: true })).toBeVisible();
-    await expect(card.getByText('0 L', { exact: true })).toBeVisible();
+    await expect(card.getByText('Recent report', { exact: true })).toBeVisible();
+    await expect(card.getByText(roomNumber === 1 ? 'Active' : 'Inactive', { exact: true })).toBeVisible();
+    await expect(card.getByText(roomNumber === 2 ? 'Open' : 'Closed', { exact: true })).toBeVisible();
+    await expect(card.getByText(roomNumber === 3 ? 'On' : 'Off', { exact: true })).toBeVisible();
+    await expect(card.getByText('Flow Detected', { exact: true })).toBeVisible();
+    await expect(card.getByText(/not calibrated|pulses|used today/i)).toHaveCount(0);
+    await expect(card.locator('time')).toHaveCount(0);
     await expect(card.getByRole('link', { name: `View Room ${roomNumber} details` })).toBeVisible();
   }
   const inlet = page.getByRole('region', { name: 'Main water inlet' });
-  await expect(inlet.getByText('No flow detected')).toBeVisible();
-  await expect(inlet.getByText('0.00', { exact: true })).toBeVisible();
+  await expect(inlet.getByText('Recent report', { exact: true })).toBeVisible();
+  await expect(inlet.getByText('Unavailable', { exact: true })).toHaveCount(2);
 
   const sidebar = await page.getByRole('complementary').boundingBox();
   expect(sidebar!.width).toBe(222);
@@ -36,7 +35,7 @@ test('Overview matches the 1440 x 900 Figma geometry and initial demo values', a
     const { x, y, width, height } = image.getBoundingClientRect();
     return { x, y, width, height, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight, loaded: image.complete, local: new URL(image.src).origin === location.origin };
   }));
-  expect(navigationIcons).toHaveLength(3);
+  expect(navigationIcons).toHaveLength(2);
   navigationIcons.forEach((icon, index) => {
     expect(icon.loaded).toBe(true);
     expect(icon.local).toBe(true);
@@ -54,14 +53,14 @@ test('Overview matches the 1440 x 900 Figma geometry and initial demo values', a
   expect(cards).toHaveLength(3);
   cards.forEach((card, index) => {
     expect(card.x).toBeCloseTo(254 + 391 * index, 0);
-    expect(card.y).toBeCloseTo(255.99, 0);
+    expect(card.y).toBeCloseTo(cards[0].y, 0);
     expect(card.width).toBeCloseTo(372, 0);
-    expect(card.height).toBeCloseTo(252, 0);
+    expect(card.height).toBeCloseTo(cards[0].height, 0);
   });
   const inletBounds = await inlet.boundingBox();
   expect(inletBounds!.x).toBe(254);
-  expect(inletBounds!.y).toBeCloseTo(523.99, 0);
-  expect(inletBounds!.height).toBeCloseTo(133, 0);
+  expect(inletBounds!.y).toBeCloseTo(cards[0].y + cards[0].height + 16, 0);
+  expect(inletBounds!.width).toBeCloseTo(cards.at(-1)!.x + cards.at(-1)!.width - cards[0].x, 0);
   const logo = await page.locator('.dashboard-brand img').evaluate((image: HTMLImageElement) => ({
     loaded: image.complete && image.naturalWidth === 42,
     local: new URL(image.src).origin === location.origin,
@@ -83,11 +82,11 @@ test('sidebar navigation and the Welcome brand link work', async ({ page }) => {
   await expect(page).toHaveURL('/rooms');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Room Details');
   await expect(navigation.getByRole('link', { name: 'Room Details', exact: true })).toHaveAttribute('aria-current', 'page');
-  await navigation.getByRole('link', { name: 'Alerts', exact: true }).click();
+  await page.getByRole('button', { name: /^Alerts/ }).click();
+  await page.getByRole('link', { name: /^View all alerts/ }).click();
   await expect(page).toHaveURL('/alerts');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Alerts');
   await expect(page.getByText('No alert records yet', { exact: true })).toBeVisible();
-  await expect(page.getByText('Monitoring not yet active', { exact: true })).toBeVisible();
   await navigation.getByRole('link', { name: 'Overview', exact: true }).click();
   await page.getByRole('link', { name: 'Back to Welcome', exact: true }).click();
   await expect(page).toHaveURL('/');
@@ -120,11 +119,16 @@ test('the room selector switches details and unknown room URLs recover safely', 
   await expect(page.getByRole('article', { name: 'Room 1', exact: true })).toBeVisible();
 });
 
-test('Overview remains usable on a narrow screen', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/overview');
-  const size = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: innerWidth }));
-  expect(size.content).toBeLessThanOrEqual(size.viewport);
-  await page.getByRole('link', { name: 'View Room 3 details' }).click();
-  await expect(page.getByRole('article', { name: 'Room 3', exact: true })).toBeVisible();
-});
+for (const width of [320, 390, 768, 1024]) {
+  test(`Overview adapts the room grid at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/overview');
+    await expect(page.locator('.overview-check-time')).toContainText('Last checked');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    const cards = await page.locator('.room-card').evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
+    expect(new Set(cards).size).toBe(width < 660 ? 3 : 2);
+    if (width === 390) await page.screenshot({ path: testInfo.outputPath('overview-mobile.png'), fullPage: true });
+    await page.getByRole('link', { name: 'View Room 3 details' }).click();
+    await expect(page.getByRole('article', { name: 'Room 3', exact: true })).toBeVisible();
+  });
+}

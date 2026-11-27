@@ -76,6 +76,8 @@
   align-items: center;
 }
 
+.dashboard-topbar .rd-check-time { width: auto; font-size: inherit; line-height: inherit; }
+
 .rd-utility {
   gap: 9px;
   font-size: 14px;
@@ -124,14 +126,6 @@
   height: 6px;
   border-radius: 3px;
   background: currentColor;
-}
-
-.rd-badge--demo {
-  justify-content: center;
-  min-width: 122px;
-  border-color: #c8e3f3;
-  background: #eaf5fd;
-  color: #0a5680;
 }
 
 .rd-badge--unknown { border-color: #dce5ed; background: #f3f5f7; color: #42566a; }

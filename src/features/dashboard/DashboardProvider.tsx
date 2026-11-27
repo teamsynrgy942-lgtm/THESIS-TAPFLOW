@@ -1,58 +1,31 @@
-import { createContext, useContext, useMemo, useReducer } from 'react';
-import type { Dispatch, ReactNode } from 'react';
-import { createDemoDashboard, dashboardReducer } from './dashboard-model';
-import type { DashboardAction, DashboardAlert, DashboardState, RoomId, RoomTelemetry, WaterInlet } from './dashboard-model';
-import type { AlertRecord, MonitoringStatus } from '../alerts/alert-model';
+import { createContext, useContext, useMemo } from 'react';
+import type { ReactNode } from 'react';
+import { R1AlertNotification } from '../../components/alerts/R1AlertNotification';
+import { useR1AlertFeed } from '../alerts/use-r1-alert-feed';
+import { createDashboardState } from './dashboard-model';
+import type { DashboardState } from './dashboard-model';
 
-interface DashboardActions {
-  updateRoom: (roomId: RoomId, changes: Partial<RoomTelemetry>) => void;
-  updateInlet: (changes: Partial<WaterInlet>) => void;
-  replaceAlerts: (alerts: DashboardAlert[]) => void;
-  replaceAlertRecords: (records: readonly AlertRecord[]) => void;
-  setMonitoringStatus: (status: MonitoringStatus) => void;
+interface DashboardContextValue extends DashboardState {
+  alertFeed: Pick<ReturnType<typeof useR1AlertFeed>, 'loading' | 'error' | 'connection' | 'refreshAlerts'>;
 }
 
-const DashboardStateContext = createContext<DashboardState | null>(null);
-const DashboardActionsContext = createContext<DashboardActions | null>(null);
-
-function createActions(dispatch: Dispatch<DashboardAction>): DashboardActions {
-  return {
-    updateRoom: (roomId, changes) => dispatch({
-      type: 'room/updated', roomId, changes, updatedAt: new Date().toISOString(),
-    }),
-    updateInlet: (changes) => dispatch({
-      type: 'inlet/updated', changes, updatedAt: new Date().toISOString(),
-    }),
-    replaceAlerts: (alerts) => dispatch({
-      type: 'alerts/replaced', alerts, updatedAt: new Date().toISOString(),
-    }),
-    replaceAlertRecords: (records) => dispatch({
-      type: 'alerts/records-replaced', records, updatedAt: new Date().toISOString(),
-    }),
-    setMonitoringStatus: (status) => dispatch({ type: 'monitoring/status-updated', status }),
-  };
-}
+const DashboardContext = createContext<DashboardContextValue | null>(null);
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(dashboardReducer, undefined, createDemoDashboard);
-  const actions = useMemo(() => createActions(dispatch), [dispatch]);
+  const feed = useR1AlertFeed();
+  const state = useMemo(() => createDashboardState(feed.records), [feed.records]);
 
   return (
-    <DashboardActionsContext value={actions}>
-      <DashboardStateContext value={state}>{children}</DashboardStateContext>
-    </DashboardActionsContext>
+    <DashboardContext value={{ ...state, alertFeed: feed }}>
+      {children}
+      {feed.notification && <R1AlertNotification record={feed.notification} rooms={state.rooms}
+        count={feed.notificationCount} onDismiss={feed.dismissNotification} />}
+    </DashboardContext>
   );
 }
 
-export function useDashboardState(): DashboardState {
-  const state = useContext(DashboardStateContext);
+export function useDashboardState(): DashboardContextValue {
+  const state = useContext(DashboardContext);
   if (!state) throw new Error('useDashboardState must be used within DashboardProvider');
   return state;
-}
-
-/** Future data adapters can call these actions without changing screen components. */
-export function useDashboardActions(): DashboardActions {
-  const actions = useContext(DashboardActionsContext);
-  if (!actions) throw new Error('useDashboardActions must be used within DashboardProvider');
-  return actions;
 }

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createDemoDashboard, dashboardReducer } from '../../src/features/dashboard/dashboard-model.ts';
-import { formatAlertMeasurement, formatAlertTimestamp, getAlertTargetLabel, getMonitoringLabel, orderAlertRecords, summarizeAlertRecords, toActiveDashboardAlerts } from '../../src/features/alerts/alert-model.ts';
+import { createDashboardState } from '../../src/features/dashboard/dashboard-model.ts';
+import { formatAlertMeasurement, formatAlertTimestamp, getAlertTargetLabel, orderAlertRecords, toActiveDashboardAlerts } from '../../src/features/alerts/alert-model.ts';
 import type { AlertRecord } from '../../src/features/alerts/alert-model.ts';
+import { parseR1Alert, parseR1AlertId, R1_ALERT_CODE } from '../../src/features/alerts/r1-alert-model.ts';
 
-// Synthetic fixtures are test-only; application demo history is always empty.
+// Synthetic alert records are confined to tests.
 const activeFixture: AlertRecord = {
   id: 'fixture-active', target: { kind: 'room', roomId: 'room-2' }, deviceId: 'fixture-device',
   detectionRule: 'Test rule', severity: 'warning', timestamp: '2026-11-13T02:30:00Z', status: 'active',
@@ -15,47 +16,25 @@ const resolvedFixture: AlertRecord = {
   severity: 'critical', timestamp: '2026-11-13T03:30:00Z', status: 'resolved',
 };
 
-test('initial history is empty and does not imply operational monitoring', () => {
-  const initial = createDemoDashboard();
+test('initial history and related alerts start empty', () => {
+  const initial = createDashboardState();
   assert.deepEqual(initial.alertRecords, []);
-  assert.equal(initial.monitoringStatus, 'inactive');
-  assert.deepEqual(summarizeAlertRecords(initial.alertRecords), { active: 0, resolved: 0, total: 0 });
-  assert.equal(getMonitoringLabel(initial.monitoringStatus), 'Monitoring not yet active');
+  assert.deepEqual(initial.alerts, []);
 });
 
-test('summary counts follow record status and active projections exclude resolved history', () => {
-  assert.deepEqual(summarizeAlertRecords([activeFixture, resolvedFixture]), { active: 1, resolved: 1, total: 2 });
-  const projected = toActiveDashboardAlerts([activeFixture, resolvedFixture]);
-  assert.deepEqual(projected.map((record) => record.id), ['fixture-active']);
-  assert.equal(projected[0].roomId, 'room-2');
-  assert.equal(projected[0].message, 'Test rule');
+test('history keeps resolved records while related alerts include active records only', () => {
+  const records = [activeFixture, resolvedFixture];
+  const state = createDashboardState(records);
+  assert.notEqual(state.alertRecords, records);
+  assert.deepEqual(state.alertRecords, records);
+  assert.deepEqual(state.alerts.map((record) => record.id), ['fixture-active']);
+  assert.equal(state.alerts[0].roomId, 'room-2');
+  assert.equal(state.alerts[0].message, 'Test rule');
   assert.equal(toActiveDashboardAlerts([{ ...activeFixture, target: { kind: 'main-inlet' } }])[0].roomId, undefined);
 });
 
-test('record updates preserve room commands and never activate monitoring automatically', () => {
-  const initial = createDemoDashboard();
-  const next = dashboardReducer(initial, { type: 'alerts/records-replaced', records: [activeFixture, resolvedFixture], updatedAt: '2026-11-13T04:00:00Z' });
-  assert.equal(next.alertRecords.length, 2);
-  assert.equal(next.alerts.length, 1);
-  assert.equal(next.rooms, initial.rooms);
-  assert.equal(next.inlet, initial.inlet);
-  assert.equal(next.monitoringStatus, 'inactive');
-  const cleared = dashboardReducer(next, { type: 'alerts/records-replaced', records: [], updatedAt: next.updatedAt });
-  assert.deepEqual(cleared.alertRecords, []);
-  assert.deepEqual(cleared.alerts, []);
-  assert.equal(cleared.monitoringStatus, 'inactive');
-});
-
-test('monitoring status changes only through its explicit action', () => {
-  const initial = createDemoDashboard();
-  const next = dashboardReducer(initial, { type: 'monitoring/status-updated', status: 'active' });
-  assert.equal(getMonitoringLabel(next.monitoringStatus), 'Monitoring active');
-  assert.deepEqual(next.alertRecords, []);
-  assert.equal(initial.monitoringStatus, 'inactive');
-});
-
 test('room and inlet labels, newest-first ordering, and PHT timestamps retain record meaning', () => {
-  const rooms = createDemoDashboard().rooms;
+  const rooms = createDashboardState().rooms;
   assert.equal(getAlertTargetLabel(activeFixture.target, rooms), 'Room 2');
   assert.equal(getAlertTargetLabel(resolvedFixture.target, rooms), 'Main water inlet');
   const input = [activeFixture, resolvedFixture];
@@ -78,4 +57,52 @@ test('all four severity levels are retained in active projections', () => {
   for (const severity of ['info', 'warning', 'critical', 'emergency'] as const) {
     assert.equal(toActiveDashboardAlerts([{ ...activeFixture, severity }])[0].severity, severity);
   }
+});
+
+const backendR1 = {
+  id: '9007199254740993', room_id: 1, code: R1_ALERT_CODE, status: 'RESOLVED',
+  detected_at: '2026-11-23T17:30:00+00:00', resolved_at: '2026-11-23T17:45:00+00:00',
+  evidence: {
+    main_flow_threshold_lpm: 0.5, room_sample_count: 0, main_sample_count: 4,
+    room_latest_at: 'malformed', main_latest_at: '2026-11-23T17:29:50+00:00',
+    note: '  Verify water path isolation.  ', secret: 'not displayed',
+  },
+};
+
+test('R1 history preserves backend status, identifiers, and recognized evidence', () => {
+  const record = parseR1Alert(backendR1);
+  assert.ok(record);
+  assert.equal(record.id, backendR1.id);
+  assert.deepEqual(record.target, { kind: 'room', roomId: 'room-1' });
+  assert.equal(record.detectionRule, R1_ALERT_CODE);
+  assert.equal(record.status, 'resolved');
+  assert.equal(record.timestamp, backendR1.detected_at);
+  assert.equal(record.resolvedAt, backendR1.resolved_at);
+  assert.equal(record.severity, undefined);
+  assert.match(record.description!, /Room 1 reported zero flow pulses/);
+  assert.deepEqual(record.evidence, [
+    { label: 'Main flow threshold', value: '0.5 L/min' },
+    { label: 'Main samples', value: '4' },
+    { label: 'Room samples', value: '0' },
+    {
+      label: 'Latest Main sample', value: 'Nov 24, 2026, 1:29 AM PHT',
+      dateTime: backendR1.evidence.main_latest_at,
+    },
+    { label: 'Note', value: 'Verify water path isolation.' },
+  ]);
+  assert.deepEqual(toActiveDashboardAlerts([record]), []);
+  const active = parseR1Alert({ ...backendR1, id: 42, status: 'ACTIVE', room_id: '2' });
+  assert.ok(active);
+  assert.equal(active.status, 'active');
+  assert.equal(active.resolvedAt, undefined);
+  assert.equal(toActiveDashboardAlerts([active])[0].roomId, 'room-2');
+});
+
+test('R1 rejects unsupported rows and avoids imprecise primary keys or local timestamps', () => {
+  assert.equal(parseR1AlertId(12), '12');
+  assert.equal(parseR1AlertId(Number.MAX_SAFE_INTEGER + 1), null);
+  for (const fields of [
+    { code: 'unrecognized' }, { room_id: 4 }, { status: 'UNKNOWN' },
+    { detected_at: '2026-11-23T17:30:00' }, { id: '' },
+  ]) assert.equal(parseR1Alert({ ...backendR1, ...fields }), null);
 });

@@ -1,4 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures/auth';
+
+test.use({ authenticated: false });
 
 test('welcome loads its original assets and renders without runtime errors', async ({ page }, testInfo) => {
   const errors: string[] = [];
@@ -15,10 +17,10 @@ test('welcome loads its original assets and renders without runtime errors', asy
   await page.evaluate(() => document.fonts.ready);
   await expect(page).toHaveTitle('TapFlow | Welcome');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'RFID-Based Automatic Water and Electrical Line Control',
+    'RFID-Based Automatic Water and Electrical Line Control with Water Flow Anomaly Detection System',
   );
   await expect(page.getByRole('img', { name: 'TapFlow', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Open Dashboard' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
 
   const assets = await page.locator('img').evaluateAll((images: HTMLImageElement[]) =>
     images.map((image) => ({
@@ -40,10 +42,17 @@ test('welcome loads its original assets and renders without runtime errors', asy
   expect(errors).toEqual([]);
 });
 
-test('keyboard navigation opens Overview, survives refresh, and returns to Welcome', async ({ page }) => {
+test('keyboard login opens Overview, survives refresh, and returns to Welcome', async ({ page, auth }) => {
   await page.goto('/');
+  await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('link', { name: 'Open Dashboard' })).toBeFocused();
+  await expect(page.getByLabel('Email', { exact: true })).toBeFocused();
+  await page.keyboard.type(auth.email);
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Password', { exact: true })).toBeFocused();
+  await page.keyboard.type(auth.password);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL('/overview');
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
@@ -63,12 +72,12 @@ for (const viewport of [
   { width: 844, height: 390 },
   { width: 1920, height: 1080 },
 ]) {
-  test(`welcome stays usable at ${viewport.width} x ${viewport.height}`, async ({ page }, testInfo) => {
+  test(`welcome stays usable at ${viewport.width} x ${viewport.height}`, async ({ page, auth }, testInfo) => {
     await page.setViewportSize(viewport);
     await page.goto('/');
     await page.evaluate(() => document.fonts.ready);
     const heading = page.getByRole('heading', { level: 1 });
-    const action = page.getByRole('link', { name: 'Open Dashboard' });
+    const action = page.getByRole('button', { name: 'Sign In', exact: true });
     await expect(heading).toBeVisible();
     await expect(action).toBeVisible();
 
@@ -86,7 +95,7 @@ for (const viewport of [
       await page.screenshot({ path: testInfo.outputPath('welcome-mobile.png'), fullPage: true });
     }
 
-    await action.click();
+    await auth.signIn(page);
     await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   });
 }

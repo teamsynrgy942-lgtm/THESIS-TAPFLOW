@@ -1,48 +1,50 @@
-import { Link, useParams } from 'react-router';
+import { Link } from 'react-router';
 import { useDashboardState } from '../../features/dashboard/DashboardProvider';
-import { demoRoomHistories, selectRoomAlerts } from '../../features/rooms/room-details-model';
+import { selectRoomAlerts } from '../../features/rooms/room-details-model';
+import { useRoomTelemetry } from '../../features/rooms/RoomTelemetryProvider';
+import { latestRoomReading } from '../../features/rooms/room-telemetry';
+import { roomReportingLabel, roomReportingTime, telemetryErrorLabel } from '../../features/overview/overview-telemetry';
+import { telemetryRooms } from '../../features/telemetry/telemetry-types';
 import { RoomSelector } from '../../components/room-details/RoomSelector';
 import { RoomMetricCards } from '../../components/room-details/RoomMetricCards';
 import { RoomDetailBadge } from '../../components/room-details/RoomDetailBadge';
-import { WaterFlowPanel, WaterUsageHistoryPanel, RecentActivityPanel, RelatedAlertsPanel } from '../../components/room-details/RoomHistoryPanels';
-import { RoomIcon } from '../../components/room-details/RoomIcon';
+import { WaterFlowPanel, RelatedAlertsPanel } from '../../components/room-details/RoomHistoryPanels';
 import './RoomDetailsPage.css';
 
 export function RoomDetailsPage() {
-  const { roomId } = useParams();
-  const { rooms, alerts } = useDashboardState();
-  const selectedRoom = roomId ? rooms.find((room) => room.id === roomId) : rooms[0];
-  const history = selectedRoom ? demoRoomHistories[selectedRoom.id] : undefined;
+  const { alerts } = useDashboardState();
+  const { room: selectedRoom, telemetry, now, chartRange, setChartRange } = useRoomTelemetry();
+  const reading = latestRoomReading(telemetry);
+  const error = reading.error ?? telemetry.status.error;
+  const reportedAt = roomReportingTime(telemetry.status.value, reading.value);
+  const label = !reading.loaded ? 'Loading…' : error && !reportedAt ? 'Refresh failed' : roomReportingLabel(telemetry.status.value, reading.value, now);
 
   return (
     <>
       <header className="rd-page-header">
         <div>
           <h1>Room Details</h1>
-          <p>{selectedRoom ? 'Review RFID access, utility commands, and water usage for the selected room.' : 'The requested room could not be found.'}</p>
+          {!selectedRoom && <p>The requested room could not be found.</p>}
         </div>
       </header>
       <div className="rd-room-toolbar">
-        <RoomSelector rooms={rooms} selectedRoomId={selectedRoom?.id} />
-        {selectedRoom && <div className="rd-room-status">
+        <RoomSelector rooms={telemetryRooms} selectedRoomId={selectedRoom?.id} />
+        {selectedRoom && <div className="rd-room-status" aria-live="polite">
           <h2 id="selected-room-title">{selectedRoom.name}</h2>
-          <RoomDetailBadge tone={selectedRoom.status === 'active' ? 'success' : selectedRoom.status === 'alert' ? 'warning' : 'idle'}>
-            {{ idle: 'Idle', active: 'Active', alert: 'Alert', offline: 'Offline' }[selectedRoom.status]}
-          </RoomDetailBadge>
-          <RoomDetailBadge tone="unknown">Connectivity unknown</RoomDetailBadge>
+          <RoomDetailBadge tone={error ? 'warning' : 'idle'}>{label}</RoomDetailBadge>
         </div>}
       </div>
-      {selectedRoom && history ? (
+      {selectedRoom ? (
         <article className="rd-room-body" aria-labelledby="selected-room-title">
-          <RoomMetricCards room={selectedRoom} />
+          <RoomMetricCards room={selectedRoom} reading={reading} status={telemetry.status} now={now} />
+          {telemetry.status.error && <p className="rd-sample-note rd-sample-note--error" role="alert">
+            Room status: {telemetryErrorLabel(telemetry.status.error)}
+          </p>}
           <div className="rd-panel-grid">
-            <WaterFlowPanel readings={history.flowReadings} />
-            <WaterUsageHistoryPanel records={history.usageRecords} />
-            <RecentActivityPanel activities={history.activities} />
+            <WaterFlowPanel telemetry={telemetry} now={now} chartRange={chartRange} onChartRangeChange={setChartRange} />
             <RelatedAlertsPanel alerts={selectRoomAlerts(alerts, selectedRoom.id)} />
           </div>
           <footer className="rd-footnote">
-            <p><RoomIcon name="info" /><span>Valve and light fields show controller commands. Flow is shown separately as a sensor reading.</span></p>
             <Link className="dashboard-return-link" to="/overview">← Back to Overview</Link>
           </footer>
         </article>

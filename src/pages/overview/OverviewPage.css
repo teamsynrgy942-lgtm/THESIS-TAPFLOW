@@ -1,12 +1,10 @@
-.overview-header > .status-badge {
-  min-width: 122.72px;
-}
+.dashboard-topbar .overview-check-time { width: auto; }
 
 .overview-rooms {
   display: flex;
   flex-direction: column;
-  gap: 9.99px;
-  padding-top: 15px;
+  gap: 12px;
+  padding-top: 8px;
 }
 
 .overview-rooms h2 {
@@ -23,10 +21,10 @@
   gap: 19px;
 }
 
-@media (max-width: 1300px) {
+@media (max-width: 1119px) {
   .room-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 659px) {
   .room-grid { grid-template-columns: minmax(0, 1fr); }
 }

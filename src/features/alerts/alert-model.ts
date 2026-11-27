@@ -2,22 +2,31 @@ import type { DashboardAlert, Room, RoomId } from '../dashboard/dashboard-model'
 
 export type AlertSeverity = 'info' | 'warning' | 'critical' | 'emergency';
 export type AlertStatus = 'active' | 'resolved';
-export type MonitoringStatus = 'inactive' | 'active';
 
 export type AlertTarget =
   | { kind: 'room'; roomId: RoomId }
   | { kind: 'main-inlet' };
 
-/** Frontend contract only. A future adapter must map the actual database schema. */
+export interface AlertEvidenceItem {
+  label: string;
+  value: string;
+  dateTime?: string;
+}
+
+/** Display contract for verified alert records. */
 export interface AlertRecord {
   id: string;
   target: AlertTarget;
   deviceId?: string;
   detectionRule: string;
-  severity: AlertSeverity;
+  severity?: AlertSeverity;
   timestamp: string;
   status: AlertStatus;
+  title?: string;
   message?: string;
+  description?: string;
+  resolvedAt?: string;
+  evidence?: readonly AlertEvidenceItem[];
   measuredValue?: number;
   threshold?: number;
   unit?: string;
@@ -26,14 +35,6 @@ export interface AlertRecord {
 export const severityLabels: Record<AlertSeverity, string> = {
   info: 'Info', warning: 'Warning', critical: 'Critical', emergency: 'Emergency',
 };
-
-export function summarizeAlertRecords(records: readonly AlertRecord[]) {
-  return {
-    active: records.filter((record) => record.status === 'active').length,
-    resolved: records.filter((record) => record.status === 'resolved').length,
-    total: records.length,
-  };
-}
 
 /** Keep existing active-alert views synchronized without including resolved history. */
 export function toActiveDashboardAlerts(records: readonly AlertRecord[]): DashboardAlert[] {
@@ -65,10 +66,6 @@ export function orderAlertRecords(records: readonly AlertRecord[]): AlertRecord[
     const second = Date.parse(b.timestamp);
     return (Number.isFinite(second) ? second : 0) - (Number.isFinite(first) ? first : 0);
   });
-}
-
-export function getMonitoringLabel(status: MonitoringStatus): string {
-  return status === 'active' ? 'Monitoring active' : 'Monitoring not yet active';
 }
 
 export function formatAlertMeasurement(value: number | undefined, unit?: string): string | null {
