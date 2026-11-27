@@ -53,7 +53,14 @@
   text-align: right;
 }
 
-.room-card__footer { display: flex; justify-content: flex-end; margin-top: auto; }
+.room-card--on { border-color: #b7e4cf; background: #f7fdf9; }
+.room-card--off { border-color: #d7e2ea; }
+.room-card--stale { border-color: #ead7a4; background: #fffaf2; }
+.room-card--missing { border-color: #f0c9c9; background: #fff7f7; }
+.room-card--unknown { border-color: #d5e4ef; background: #f8fbfe; }
+.room-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
+.room-card__report { margin: 0; color: var(--dashboard-muted); font-size: 12px; line-height: 1.4; }
+.room-card__report time { color: #1d3d55; font-weight: 650; }
 
 .dashboard-detail-link {
   display: inline-flex;

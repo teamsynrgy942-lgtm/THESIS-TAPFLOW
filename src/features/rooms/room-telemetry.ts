@@ -51,10 +51,10 @@ export function pulseChartSamples(readings: readonly FlowReading[]) {
 }
 
 export const pulseChartRanges = [
-  { id: '5m', label: 'Last 5 minutes', milliseconds: 5 * 60_000 },
-  { id: '30m', label: 'Last 30 minutes', milliseconds: 30 * 60_000 },
-  { id: '1h', label: 'Last 1 hour', milliseconds: 60 * 60_000 },
-  { id: '24h', label: 'Last 24 hours', milliseconds: 24 * 60 * 60_000 },
+  { id: '5m', label: 'Last 5 minutes', shortLabel: '5 min', milliseconds: 5 * 60_000 },
+  { id: '30m', label: 'Last 30 minutes', shortLabel: '30 min', milliseconds: 30 * 60_000 },
+  { id: '1h', label: 'Last 1 hour', shortLabel: '1 hour', milliseconds: 60 * 60_000 },
+  { id: '24h', label: 'Last 24 hours', shortLabel: '24 hours', milliseconds: 24 * 60 * 60_000 },
 ] as const;
 export type PulseChartRange = typeof pulseChartRanges[number]['id'];
 export const PULSE_SAMPLE_MS = 15_000;
@@ -73,15 +73,18 @@ export function buildPulseChart(readings: readonly FlowReading[], window: PulseC
   const expectedInterval = inWindow.filter((reading) => reading.sample_ms === PULSE_SAMPLE_MS);
   const samples = pulseChartSamples(expectedInterval);
   const segments: (typeof samples)[] = [];
+  const gaps: { start: number; end: number }[] = [];
   for (const sample of samples) {
     const previous = segments.at(-1)?.at(-1);
     const gap = previous ? sample.timestamp - previous.timestamp : Infinity;
     // Equal receipt times remain separate points rather than implying a vertical flow change.
-    if (!previous || gap > PULSE_GAP_MS || gap <= 0) segments.push([sample]);
-    else segments[segments.length - 1].push(sample);
+    if (!previous || gap > PULSE_GAP_MS || gap <= 0) {
+      if (previous && gap > PULSE_GAP_MS) gaps.push({ start: previous.timestamp, end: sample.timestamp });
+      segments.push([sample]);
+    } else segments[segments.length - 1].push(sample);
   }
   return {
-    samples, segments,
+    samples, segments, gaps,
     otherIntervals: inWindow.length - expectedInterval.length,
     invalidSamples: expectedInterval.length - samples.length,
   };

@@ -29,7 +29,7 @@ async function routeAlerts(page: Page, accessToken: string, respond: (route: Rou
     expect(request.headers()['accept-profile']).toBe('public');
     expect(request.headers().authorization === `Bearer ${accessToken}`).toBe(true);
     const url = new URL(request.url());
-    expect(url.searchParams.get('code')).toBe(`eq.${code}`);
+    expect(url.searchParams.get('code')).toBeNull();
     await respond(route, url);
   });
 }
@@ -123,7 +123,7 @@ test('initial loading and a denied alert query are distinct from an empty log, w
   fail = false;
   await log.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(log.getByRole('heading', { name: 'No alert records yet' })).toBeVisible();
-  await expect(log.getByText('No R1 alert records are visible to this signed-in account.', { exact: true })).toBeVisible();
+  await expect(log.getByText('No alert records are visible to this signed-in account.', { exact: true })).toBeVisible();
   await expect(log.getByRole('alert')).toHaveCount(0);
 });
 

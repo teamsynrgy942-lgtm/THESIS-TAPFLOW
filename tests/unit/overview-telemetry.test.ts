@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { applyTelemetryReport, createOverviewTelemetry, currentCommandLabel, currentFlowDisplay, flowActivityLabel, reportingFreshness, reportingLabel, roomReportingTime } from '../../src/features/overview/overview-telemetry.ts';
+import { applyTelemetryReport, createOverviewTelemetry, currentCommandLabel, currentFlowDisplay, flowActivityLabel, inletPresenceLabel, rawPulseLabel, reportingFreshness, reportingLabel, roomPresenceLabel, roomReportingTime } from '../../src/features/overview/overview-telemetry.ts';
 import { observeReportingTimestamps, timestampChange } from '../../src/features/telemetry/heartbeat-observation.ts';
 import type { FlowReading, RoomStatus, TelemetryReport } from '../../src/features/telemetry/telemetry-types.ts';
 
@@ -144,6 +144,22 @@ test('flow activity requires a recent valid pulse count and distinguishes a meas
   for (const invalid of [null, -1, Number.NaN, 1.5]) assert.equal(label(invalid), 'Unknown');
   assert.equal(label(0, now + 120_001), 'Unknown');
   assert.equal(label(4, now - 1), 'Unknown');
+});
+
+test('presence labels separate a current room from stale, missing, and measured-zero pulses', () => {
+  const loaded = { loaded: true, error: null };
+  const recentStatus = { ...loaded, value: { ...status, timestamps: { last_seen_at: fresh } } };
+  const recentFlow = { ...loaded, value: { ...flow, device_id: 'room1' as const, pulses: 0, received_at: fresh } };
+  assert.equal(roomPresenceLabel(recentStatus, recentFlow, now), 'ON');
+  assert.equal(roomPresenceLabel({ ...recentStatus, value: { ...recentStatus.value, valve_commanded_on: false, rfid_active: false, bulb_commanded_on: false } }, recentFlow, now), 'OFF');
+  assert.equal(roomPresenceLabel({ ...loaded, value: { ...status, timestamps: { last_seen_at: stale } } }, recentFlow, now), 'Stale');
+  assert.equal(roomPresenceLabel({ ...loaded, value: null }, { ...loaded, value: null }, now), 'Missing Data');
+  assert.equal(rawPulseLabel(recentFlow, now), '0 pulses');
+  assert.equal(rawPulseLabel({ ...loaded, value: null }, now), 'Missing data');
+  assert.equal(rawPulseLabel({ ...loaded, value: { ...recentFlow.value, received_at: stale } }, now), 'Unknown');
+  assert.equal(inletPresenceLabel({ ...loaded, value: { ...flow, flow_lpm: 1.5 } }, now), 'ON');
+  assert.equal(inletPresenceLabel({ ...loaded, value: { ...flow, flow_lpm: 1.5, received_at: stale } }, now), 'Stale');
+  assert.equal(inletPresenceLabel({ ...loaded, value: flow }, now), 'Unknown');
 });
 
 test('timestamp observations distinguish a baseline, advancement, unchanged values, regression, and invalid clocks', () => {

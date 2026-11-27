@@ -12,7 +12,7 @@
     "typecheck": "tsc -b",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
-    "test:unit": "node --test tests/unit/dashboard-model.test.ts tests/unit/room-details-model.test.ts tests/unit/alerts-model.test.ts tests/unit/overview-telemetry.test.ts tests/unit/main-consumption.test.ts tests/unit/supabase-error.test.ts",
+    "test:unit": "node --test tests/unit/dashboard-model.test.ts tests/unit/room-details-model.test.ts tests/unit/alerts-model.test.ts tests/unit/overview-telemetry.test.ts tests/unit/main-consumption.test.ts tests/unit/supabase-error.test.ts tests/unit/pulse-chart.test.ts",
     "test:e2e": "npm run build && playwright test",
     "test:telemetry": "playwright test --config playwright.dev.config.ts"
   },

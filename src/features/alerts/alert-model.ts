@@ -68,6 +68,23 @@ export function orderAlertRecords(records: readonly AlertRecord[]): AlertRecord[
   });
 }
 
+/** Notify once per active incident. A second room or code is independent of an existing incident. */
+export function selectNewNotificationIds(
+  records: readonly AlertRecord[],
+  knownIds: ReadonlySet<string>,
+  notifiedIds: ReadonlySet<string>,
+  insertedIds: ReadonlySet<string>,
+  hasSnapshot: boolean,
+): string[] {
+  return records.filter((record) => record.status === 'active' && !notifiedIds.has(record.id)
+    && (insertedIds.has(record.id) || (hasSnapshot && !knownIds.has(record.id)))).map((record) => record.id);
+}
+
+export function incidentKey(record: AlertRecord): string {
+  const room = record.target.kind === 'room' ? record.target.roomId : 'main-inlet';
+  return `${room}\u0000${record.detectionRule}`;
+}
+
 export function formatAlertMeasurement(value: number | undefined, unit?: string): string | null {
   if (value === undefined || !Number.isFinite(value)) return null;
   return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 }).format(value)}${unit ? ` ${unit}` : ''}`;

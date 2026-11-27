@@ -1,9 +1,9 @@
 import { Link } from 'react-router';
 import { useDashboardState } from '../../features/dashboard/DashboardProvider';
-import { selectRoomAlerts } from '../../features/rooms/room-details-model';
+import { selectRoomAlertRecords } from '../../features/rooms/room-details-model';
 import { useRoomTelemetry } from '../../features/rooms/RoomTelemetryProvider';
 import { latestRoomReading } from '../../features/rooms/room-telemetry';
-import { roomReportingLabel, roomReportingTime, telemetryErrorLabel } from '../../features/overview/overview-telemetry';
+import { formatTelemetryTime, roomPresenceLabel, roomReportingTime, telemetryErrorLabel } from '../../features/overview/overview-telemetry';
 import { telemetryRooms } from '../../features/telemetry/telemetry-types';
 import { RoomSelector } from '../../components/room-details/RoomSelector';
 import { RoomMetricCards } from '../../components/room-details/RoomMetricCards';
@@ -12,12 +12,12 @@ import { WaterFlowPanel, RelatedAlertsPanel } from '../../components/room-detail
 import './RoomDetailsPage.css';
 
 export function RoomDetailsPage() {
-  const { alerts } = useDashboardState();
+  const { alertRecords } = useDashboardState();
   const { room: selectedRoom, telemetry, now, chartRange, setChartRange } = useRoomTelemetry();
   const reading = latestRoomReading(telemetry);
   const error = reading.error ?? telemetry.status.error;
   const reportedAt = roomReportingTime(telemetry.status.value, reading.value);
-  const label = !reading.loaded ? 'Loading…' : error && !reportedAt ? 'Refresh failed' : roomReportingLabel(telemetry.status.value, reading.value, now);
+  const label = roomPresenceLabel(telemetry.status, reading, now);
 
   return (
     <>
@@ -31,7 +31,8 @@ export function RoomDetailsPage() {
         <RoomSelector rooms={telemetryRooms} selectedRoomId={selectedRoom?.id} />
         {selectedRoom && <div className="rd-room-status" aria-live="polite">
           <h2 id="selected-room-title">{selectedRoom.name}</h2>
-          <RoomDetailBadge tone={error ? 'warning' : 'idle'}>{label}</RoomDetailBadge>
+          <RoomDetailBadge tone={label === 'Stale' || label === 'Refresh failed' || error ? 'warning' : label === 'ON' ? 'success' : 'idle'}>{label}</RoomDetailBadge>
+          {reportedAt && <time dateTime={reportedAt}>Last device report {formatTelemetryTime(reportedAt)}</time>}
         </div>}
       </div>
       {selectedRoom ? (
@@ -42,7 +43,7 @@ export function RoomDetailsPage() {
           </p>}
           <div className="rd-panel-grid">
             <WaterFlowPanel telemetry={telemetry} now={now} chartRange={chartRange} onChartRangeChange={setChartRange} />
-            <RelatedAlertsPanel alerts={selectRoomAlerts(alerts, selectedRoom.id)} />
+            <RelatedAlertsPanel alerts={selectRoomAlertRecords(alertRecords, selectedRoom.id)} />
           </div>
           <footer className="rd-footnote">
             <Link className="dashboard-return-link" to="/overview">← Back to Overview</Link>

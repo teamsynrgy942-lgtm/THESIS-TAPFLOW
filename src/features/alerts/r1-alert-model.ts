@@ -41,6 +41,30 @@ function parseEvidence(raw: unknown): AlertEvidenceItem[] {
     if (dateTime) items.push({ label, value: `${formatAlertTimestamp(dateTime)} PHT`, dateTime });
   }
   if (typeof raw.note === 'string' && raw.note.trim()) items.push({ label: 'Note', value: raw.note.trim() });
+  const occurrences = raw.occurrence_count;
+  if (typeof occurrences === 'number' && Number.isSafeInteger(occurrences) && occurrences >= 0) {
+    items.push({ label: 'Occurrences', value: String(occurrences) });
+  }
+  const observed = parseTimestamp(raw.last_observed_at);
+  if (observed) items.push({ label: 'Last observed', value: `${formatAlertTimestamp(observed)} PHT`, dateTime: observed });
+  if (typeof raw.resolution_note === 'string' && raw.resolution_note.trim()) {
+    items.push({ label: 'Resolution remarks', value: raw.resolution_note.trim() });
+  }
+  return items;
+}
+
+const hiddenEvidence = /secret|password|token|api[_-]?key|authorization|credential/i;
+
+function genericEvidence(raw: unknown): AlertEvidenceItem[] {
+  if (!isObject(raw)) return [];
+  const items: AlertEvidenceItem[] = [];
+  for (const [key, value] of Object.entries(raw)) {
+    if (hiddenEvidence.test(key)) continue;
+    const label = key.replaceAll('_', ' ');
+    if (typeof value === 'string' && value.trim()) items.push({ label, value: value.trim() });
+    else if (typeof value === 'number' && Number.isFinite(value)) items.push({ label, value: String(value) });
+    else if (typeof value === 'boolean') items.push({ label, value: value ? 'Yes' : 'No' });
+  }
   return items;
 }
 
@@ -64,5 +88,29 @@ export function parseR1Alert(row: unknown): AlertRecord | null {
     status,
     resolvedAt: status === 'resolved' ? parseTimestamp(row.resolved_at) : undefined,
     evidence: parseEvidence(row.evidence),
+  };
+}
+
+/** R1 rows keep their description. Other stored codes stay visible and are not dropped. */
+export function parseStoredAlert(row: unknown): AlertRecord | null {
+  if (!isObject(row) || typeof row.code !== 'string' || !row.code.trim()) return null;
+  if (row.code === R1_ALERT_CODE) return parseR1Alert(row);
+  const id = parseR1AlertId(row.id);
+  const timestamp = parseTimestamp(row.detected_at);
+  const room = telemetryRooms.find(({ statusId }) => row.room_id === statusId || row.room_id === String(statusId));
+  const status = row.status === 'ACTIVE' ? 'active' : row.status === 'RESOLVED' ? 'resolved' : null;
+  if (!id || !timestamp || !room || !status) return null;
+  const code = row.code.trim();
+  return {
+    id,
+    target: { kind: 'room', roomId: room.id },
+    detectionRule: code,
+    title: code,
+    message: code,
+    description: 'Recorded anomaly. The dashboard displays the stored code and evidence without adding a detection rule.',
+    timestamp,
+    status,
+    resolvedAt: status === 'resolved' ? parseTimestamp(row.resolved_at) : undefined,
+    evidence: genericEvidence(row.evidence),
   };
 }

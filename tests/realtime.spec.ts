@@ -71,10 +71,10 @@ test('Overview refreshes flow INSERTs and room INSERT/UPDATEs immediately using 
   await expect(first.getByText('No Flow', { exact: true })).toBeVisible();
   state.commandedOn = true;
   realtime.change('room_status', 'INSERT', { room_id: 1 });
-  await expect(first.locator('dd')).toHaveText(['No Flow', 'Active', 'Open', 'On']);
+  await expect(first.locator('dd')).toHaveText(['No Flow', 'Active', 'ON', 'ON']);
   state.commandedOn = false;
   realtime.change('room_status', 'UPDATE', { room_id: 1 });
-  await expect(first.locator('dd')).toHaveText(['No Flow', 'Inactive', 'Closed', 'Off']);
+  await expect(first.locator('dd')).toHaveText(['No Flow', 'Inactive', 'OFF', 'OFF']);
   await expect(page.locator('.overview-check-time')).toContainText('Last checked');
   expect(realtime.joins).toHaveLength(joins);
   expect(await page.evaluate(() => Date.now())).toBe(now);
@@ -90,7 +90,7 @@ test('Room Details refreshes selected-room metrics, history, and current chart r
   const chartPoint = page.locator('.rd-flow__series circle');
   await expect(chartPoint).toHaveAttribute('aria-label', /\b10 pulses\b/);
   const joins = realtime.joins.length;
-  await page.getByLabel('Time range', { exact: true }).selectOption('1h');
+  await page.getByRole('radio', { name: '1 hour', exact: true }).check();
   await expect(page.locator('.rd-data-status')).toContainText('Last checked:');
   const before = state.calls.length;
   state.pulses.room1 = 55;
@@ -115,7 +115,7 @@ test('Room Details refreshes selected-room metrics, history, and current chart r
   await expect(page.getByRole('group', { name: 'RFID Session', exact: true }).getByText('Active', { exact: true })).toBeVisible();
   state.commandedOn = false;
   realtime.change('room_status', 'UPDATE', { room_id: 1 });
-  await expect(page.getByRole('group', { name: 'Valve Command', exact: true }).getByText('Closed', { exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Valve Command', exact: true }).getByText('OFF', { exact: true })).toBeVisible();
   expect(realtime.joins).toHaveLength(joins);
 
   await page.getByRole('navigation', { name: 'Select room' }).getByRole('link', { name: 'Room 2', exact: true }).click();

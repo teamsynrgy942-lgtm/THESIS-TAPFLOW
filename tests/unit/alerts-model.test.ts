@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createDashboardState } from '../../src/features/dashboard/dashboard-model.ts';
-import { formatAlertMeasurement, formatAlertTimestamp, getAlertTargetLabel, orderAlertRecords, toActiveDashboardAlerts } from '../../src/features/alerts/alert-model.ts';
+import { formatAlertMeasurement, formatAlertTimestamp, getAlertTargetLabel, incidentKey, orderAlertRecords, selectNewNotificationIds, toActiveDashboardAlerts } from '../../src/features/alerts/alert-model.ts';
 import type { AlertRecord } from '../../src/features/alerts/alert-model.ts';
-import { parseR1Alert, parseR1AlertId, R1_ALERT_CODE } from '../../src/features/alerts/r1-alert-model.ts';
+import { parseR1Alert, parseR1AlertId, parseStoredAlert, R1_ALERT_CODE } from '../../src/features/alerts/r1-alert-model.ts';
 
 // Synthetic alert records are confined to tests.
 const activeFixture: AlertRecord = {
@@ -105,4 +105,42 @@ test('R1 rejects unsupported rows and avoids imprecise primary keys or local tim
     { code: 'unrecognized' }, { room_id: 4 }, { status: 'UNKNOWN' },
     { detected_at: '2026-11-23T17:30:00' }, { id: '' },
   ]) assert.equal(parseR1Alert({ ...backendR1, ...fields }), null);
+});
+
+test('an active incident in one room does not hide a different room or code', () => {
+  const roomTwo = { ...activeFixture, id: 'room-2-r1', target: { kind: 'room' as const, roomId: 'room-2' as const }, detectionRule: 'R1_MISSING_FLOW_SIGNAL' };
+  const roomThree = { ...roomTwo, id: 'room-3-r1', target: { kind: 'room' as const, roomId: 'room-3' as const } };
+  const otherCode = { ...roomTwo, id: 'room-2-other', detectionRule: 'OTHER_CODE' };
+  const active = toActiveDashboardAlerts([roomTwo, roomThree, otherCode, resolvedFixture]);
+  assert.deepEqual(active.map((record) => record.id), ['room-2-r1', 'room-3-r1', 'room-2-other']);
+  assert.equal(incidentKey(roomTwo) === incidentKey(roomThree), false);
+  assert.equal(incidentKey(roomTwo) === incidentKey(otherCode), false);
+});
+
+test('notifications are emitted once and still include a later room', () => {
+  const known = new Set(['room-1']);
+  const notified = new Set<string>();
+  const inserted = new Set(['room-2']);
+  const records = [
+    { ...activeFixture, id: 'room-1', status: 'active' as const },
+    { ...activeFixture, id: 'room-2', status: 'active' as const },
+    { ...activeFixture, id: 'room-2-dup', status: 'resolved' as const },
+  ];
+  const first = selectNewNotificationIds(records, known, notified, inserted, true);
+  assert.deepEqual(first, ['room-2']);
+  notified.add('room-2');
+  inserted.add('room-2');
+  assert.deepEqual(selectNewNotificationIds(records, known, notified, inserted, true), []);
+  const roomThree = { ...activeFixture, id: 'room-3', status: 'active' as const };
+  assert.deepEqual(selectNewNotificationIds([...records, roomThree], known, notified, new Set(), true), ['room-3']);
+});
+
+test('stored alerts keep other codes and still reject an invalid R1 row', () => {
+  const other = parseStoredAlert({ ...backendR1, id: '7', code: 'OTHER_CODE', status: 'ACTIVE', evidence: { api_key: 'hidden', note: 'kept' } });
+  assert.ok(other);
+  assert.equal(other.detectionRule, 'OTHER_CODE');
+  assert.equal(other.status, 'active');
+  assert.equal(other.evidence?.some((item) => item.value === 'hidden'), false);
+  assert.equal(other.evidence?.some((item) => item.value === 'kept'), true);
+  assert.equal(parseStoredAlert({ ...backendR1, code: R1_ALERT_CODE, room_id: 4 }), null);
 });

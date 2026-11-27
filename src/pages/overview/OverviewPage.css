@@ -7,6 +7,7 @@
   padding-top: 8px;
 }
 
+.overview-rooms__heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .overview-rooms h2 {
   min-height: 28px;
   margin: 0;
@@ -14,6 +15,15 @@
   font-weight: 700;
   line-height: 27.55px;
 }
+.overview-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 0; padding: 0; list-style: none; color: #486176; font-size: 12px; line-height: 1.4; }
+.overview-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.overview-legend li span:last-child { color: #6d8496; }
+.overview-legend__dot { width: 8px; height: 8px; border-radius: 50%; background: #8aa0b0; }
+.overview-legend__dot--on { background: #12815f; }
+.overview-legend__dot--off { background: #7d93a4; }
+.overview-legend__dot--unknown { background: #1d6f9a; }
+.overview-legend__dot--stale { background: #c48a12; }
+.overview-legend__dot--missing { background: #b4233c; }
 
 .room-grid {
   display: grid;

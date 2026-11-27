@@ -17,7 +17,16 @@ export function OverviewPage() {
         </div>
       </header>
       <section className="overview-rooms" aria-labelledby="rooms-title">
-        <h2 id="rooms-title">Rooms</h2>
+        <div className="overview-rooms__heading">
+          <h2 id="rooms-title">Rooms</h2>
+          <ul className="overview-legend" aria-label="Status meanings">
+            <li><span className="overview-legend__dot overview-legend__dot--on" aria-hidden="true" />ON <span>Active or in use</span></li>
+            <li><span className="overview-legend__dot overview-legend__dot--off" aria-hidden="true" />OFF <span>Idle</span></li>
+            <li><span className="overview-legend__dot overview-legend__dot--unknown" aria-hidden="true" />Unknown <span>No current state</span></li>
+            <li><span className="overview-legend__dot overview-legend__dot--stale" aria-hidden="true" />Stale <span>Data not recent</span></li>
+            <li><span className="overview-legend__dot overview-legend__dot--missing" aria-hidden="true" />Missing Data <span>No reports</span></li>
+          </ul>
+        </div>
         <div className="room-grid">
           {overviewRooms.map((room) => <RoomCard key={room.id} room={room} reading={telemetry.readings[room.deviceId]} status={telemetry.rooms[room.statusId]} now={now} />)}
         </div>

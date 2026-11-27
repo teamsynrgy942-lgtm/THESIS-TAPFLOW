@@ -179,7 +179,7 @@ Room Details implementation files:
 
 ## R1 alerts
 
-The Alerts log verifies the current shared Supabase session with Auth before reading `public.tapflow_r1_alerts`. It shows **Possible Flow Sensor Failure**, the exact `R1_MISSING_FLOW_SIGNAL` code, room, recorded evidence, and detection and resolution times in Philippine Time. Active alerts appear first and resolved alerts remain in the log. The only row filter is `code = R1_MISSING_FLOW_SIGNAL`; there is no status, date, room, or user filter in the history query. **No alert records yet** means the verified account received an empty result, which does not prove the table is empty.
+The Alerts log verifies the current shared Supabase session with Auth before reading `public.tapflow_r1_alerts`. It shows **Possible Flow Sensor Failure**, the exact `R1_MISSING_FLOW_SIGNAL` code, room, recorded evidence, and detection and resolution times in Philippine Time. Active alerts appear first and resolved alerts remain in the log. The history query has no status, code, date, room, or user filter, so another anomaly code stored in the same table remains visible. **No alert records yet** means the verified account received an empty result, which does not prove the table is empty.
 
 `src/features/alerts/r1-alert-model.ts` maps backend rows to the existing `AlertRecord` view model. The R1 table does not supply a severity. The evidence detail shows recognized fields from the stored JSON, including counts, the Main threshold, sample timestamps, and the recorded note.
 

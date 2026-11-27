@@ -1,6 +1,6 @@
 import type { FlowReading, MainConsumptionReport } from '../../features/telemetry/telemetry-types';
 import type { LatestRecord } from '../../features/overview/overview-telemetry';
-import { currentFlowDisplay, reportingFreshness, reportingLabel } from '../../features/overview/overview-telemetry';
+import { currentFlowDisplay, inletPresenceLabel, presenceTone } from '../../features/overview/overview-telemetry';
 import { getPhilippineDay } from '../../features/overview/main-consumption';
 import { StatusBadge } from './StatusBadge';
 import './MainWaterInletCard.css';
@@ -9,8 +9,8 @@ export function MainWaterInletCard({ reading, consumption, now }: {
   reading: LatestRecord<FlowReading>; consumption: MainConsumptionReport | null; now: number;
 }) {
   const flow = currentFlowDisplay(reading, now);
-  const label = !reading.loaded ? 'Loading…' : reading.error && !reading.value?.received_at ? 'Refresh failed' : reportingLabel(reading.value?.received_at, now);
-  const tone = reading.error ? 'warning' : reportingFreshness(reading.value?.received_at, now) === 'recent' ? 'success' : 'idle';
+  const label = inletPresenceLabel(reading, now);
+  const tone = label === 'Refresh failed' || reading.error ? 'warning' : presenceTone(label);
   const today = consumption?.dayStart === getPhilippineDay(now).start ? consumption : null;
   const liters = today?.liters;
   return (
@@ -31,7 +31,7 @@ export function MainWaterInletCard({ reading, consumption, now }: {
           </strong>
           {liters != null && <span>L</span>}
         </p>
-        {liters != null && today?.incomplete && <small className="inlet-card__note">Incomplete total</small>}
+        {liters != null && today?.incomplete && <small className="inlet-card__note"><span>Incomplete total</span> Data gaps were detected today. This is a recorded subtotal, not a complete daily total.</small>}
         {liters == null && today?.error && <small className="inlet-card__note">Readings could not be loaded</small>}
       </div>
     </section>
