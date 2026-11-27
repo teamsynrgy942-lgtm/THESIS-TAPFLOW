@@ -179,6 +179,80 @@ Room Details implementation files:
 
 ## R1 alerts
 
+Authorized staff see **Mark as Resolved** beside an active R1 alert's status. The button opens a confirmation dialog for that alert and room, with an optional remark (up to 2,000 characters). Cancel or Escape leaves it unchanged. Confirmation uses the existing Supabase client to call `resolve_tapflow_incident({ p_incident_id: selectedAlertId, p_remark: trimmedRemarkOrNull })`. The button is disabled while saving. Only a server-confirmed resolution updates the shared feed and triggers a fresh read: the row stays in history with its resolution time, resolver and remark, while the header, room views and active count reflect the remaining alerts. A failed save displays the error and keeps the alert Active.
+
+**Final one-time Supabase SQL, for manual deployment after review.** [supabase/drafts/resolve_tapflow_incident.sql](supabase/drafts/resolve_tapflow_incident.sql) has been checked against [r1_lifecycle_baseline.json](r1_lifecycle_baseline.json), exported November 27, 2026 at 12:01:41 UTC. The alert types support resolution, the audit columns are absent, and the alert table has no user triggers. The existing `tapflow_r1_authorized_viewer` SELECT policy already exposes both statuses across rooms to Auth UUID **`8b9e95e7-38e1-4eee-8b7e-12440b2ab00c`**. No SELECT policy, alert table grant, detector or episode change is required. A preflight check aborts before DDL if the reviewed detector/status functions, triggers, alert policy/RLS or required column types have drifted. Object conflicts intentionally fail rather than overwrite installed authorization. The RPC rechecks private `tapflow_private.r1_staff` membership on every request and retains the first resolution details on repeat calls. No live setup or deployment is performed by the app or tests.
+
+### Exact setup and staff enrollment
+
+Run these steps yourself after review. They use `tapflow_private.r1_staff` and the already-authorized dashboard account. No application code applies this SQL.
+
+1. Open the Supabase project matching `VITE_SUPABASE_URL` in `.env.local`, using the SQL Editor's `postgres` role. Keep `tapflow_private` out of exposed API schemas. Membership permits R1 resolution **across all rooms**, matching this dashboard account's existing SELECT scope.
+2. Confirm this existing login in **Authentication > Users**, or run the following. This UUID was extracted from `tapflow_r1_authorized_viewer`; it is the account to enroll. Supabase documents the Auth user table and SQL Editor access in [User Management](https://supabase.com/docs/guides/auth/managing-user-data).
+
+   ```sql
+   select id, email
+   from auth.users
+   where id = '8b9e95e7-38e1-4eee-8b7e-12440b2ab00c'::uuid;
+   ```
+
+3. Run the **entire** [supabase/drafts/resolve_tapflow_incident.sql](supabase/drafts/resolve_tapflow_incident.sql), including `begin` and `commit`, once. It checks the reviewed baseline, adds the two audit columns, private staff table and two RPCs, and reloads the API schema cache. If preflight or `CREATE` fails, run `rollback;`, export [scripts/r1-lifecycle-baseline.sql](scripts/r1-lifecycle-baseline.sql) again, and reconcile the difference. Do not bypass the check, drop existing objects or run `r1_incident_lifecycle.sql`.
+4. Run the separate [staff enrollment SQL](supabase/drafts/enroll_r1_dashboard_staff.sql) as `postgres`. It contains this exact upsert and requires the Auth account to exist:
+
+   ```sql
+   insert into tapflow_private.r1_staff (user_id, enabled)
+   values ('8b9e95e7-38e1-4eee-8b7e-12440b2ab00c'::uuid, true)
+   on conflict (user_id) do update set enabled = excluded.enabled
+   returning user_id, enabled;
+   ```
+
+5. Run the complete read-only [scripts/verify-r1-resolution.sql](scripts/verify-r1-resolution.sql). Expect all metadata/capability checks to be `true` and the existing Active **and** Resolved history to be visible. It checks the installed detector fingerprints, policy definition, exact RPC arguments and the enrolled account. A direct capability call in an ordinary SQL Editor session has no signed-in Auth UUID and returns false. The essential authenticated check is:
+
+   ```sql
+   begin read only;
+   set local role authenticated;
+   set local request.jwt.claim.sub = '8b9e95e7-38e1-4eee-8b7e-12440b2ab00c';
+   set local request.jwt.claim.role = 'authenticated';
+   set local request.jwt.claims = '{"sub":"8b9e95e7-38e1-4eee-8b7e-12440b2ab00c","role":"authenticated"}';
+
+   select auth.uid() as staff_auth_uuid,
+          public.tapflow_can_resolve_r1() as can_resolve;
+
+   select a.id::text, a.room_id, a.status, a.detected_at,
+          a.resolved_at, a.resolved_by, a.resolution_remark
+   from public.tapflow_r1_alerts a
+   where a.code = 'R1_MISSING_FLOW_SIGNAL'
+   order by a.detected_at desc, a.id desc;
+   rollback;
+   ```
+
+   If a query fails, run `rollback;`. If rows are missing or SELECT is denied, confirm the project, UUID and session and compare a fresh baseline; preserve `tapflow_r1_authorized_viewer` exactly. This account already has SELECT access, so do not apply the older review script's conditional policy/grant proposals. Enrollment grants resolution capability independently of SELECT. Keep the staff table private; the RPC performs authorization. See [Supabase function security](https://supabase.com/docs/guides/database/functions) and [RLS policies](https://supabase.com/docs/guides/database/postgres/row-level-security).
+
+6. Record the verification script's IDs, statuses, evidence and counts. Sign in to TapFlow with that same account and reload `/alerts` after enrollment, since capability is checked when the dashboard mounts. Choose one approved Active alert, enter an optional remark and confirm **Mark as Resolved**. Verify that the same ID stays in history with its original detection time/evidence, resolution time, staff UUID and remark; other Active IDs stay Active; and the shared count drops by one if no unrelated event occurred. Reload, then rerun the read-only verification script to confirm persistence and unchanged detector/policy checks. The exact browser call is:
+
+   ```ts
+   supabase.schema('public').rpc('resolve_tapflow_incident', {
+     p_incident_id: selectedAlertId, // decimal string; never convert a bigint ID to Number
+     p_remark: trimmedRemarkOrNull,
+   });
+   ```
+
+To revoke this capability later, run as `postgres`:
+
+```sql
+update tapflow_private.r1_staff
+set enabled = false
+where user_id = '8b9e95e7-38e1-4eee-8b7e-12440b2ab00c'::uuid;
+```
+
+The resolution RPC rechecks membership on every request, so revocation takes effect even in an already-open dashboard. Previously recorded resolutions retain their original attribution.
+
+The separate [supabase/drafts/r1_incident_lifecycle.sql](supabase/drafts/r1_incident_lifecycle.sql) remains **an incomplete migration draft with a blocking guard**; do not deploy it for this feature. The reviewed live detector is already `public.tapflow_r1_after_flow_insert()` on `tapflow_r1_flow_insert_trigger`, using `tapflow_internal.r1_room_episode`. Its function MD5 is `201222cdca74a0ad581ce1bd6e78c855`, and the trigger MD5 is `ad626946c8c76d776c431018c1937179`. It retains the episode's alert ID after staff resolution, skips evidence updates on resolved rows, and rearms through its existing newer positive-room recovery rule. Resolution leaves that logic and ledger untouched. The export contains the detector source but does not contain the private episode table's DDL.
+
+The draft's private episode ledger is separate from staff resolution. It conservatively latches the latest existing incident in each room, including resolved incidents, and requires new recovery evidence after the migration watermark. Private callbacks update Last detected on the current incident and allow a new incident only after recovery. **These callbacks are not yet wired into the installed detector**: only a fresh valid positive NEW room upload during authorized use may invoke recovery, and all per-room predicates must be evaluated after acquiring the room lock. Tap-out, missing uploads, cached positive samples and staff resolution must not rearm it. The original alert rows are not backfilled or updated during draft setup, avoiding side effects from unknown UPDATE triggers.
+
+Run `npm run test:r1:sql` for isolated PostgreSQL resolution and infrastructure tests and `npx playwright test tests/r1-lifecycle.spec.ts tests/r1-alerts.spec.ts tests/header-alerts.spec.ts tests/alerts.spec.ts` after building for browser checks. The resolution tests verify two same-room Active alerts: resolving one persists its remark/history and leaves the other Active, with the shared count changing from two to one. They also cover confirmation cancellation, blank remarks, missing audit fields, authorization, failed saves, duplicate clicks, stale reads and persistence after reload. The baseline test executes the finalized setup unchanged against exported public definitions and checks staff enrollment and verification SQL; the private episode table is a small inferred fixture because its DDL was not exported. Generic fixture tests remove only the named baseline guard in memory; the incomplete lifecycle draft's guard is likewise removed only in its separate isolated test. These tests do not establish live concurrency, deployed permissions or Supabase event delivery. Live validation and deployment remain for you after review.
+
 The Alerts log verifies the current shared Supabase session with Auth before reading `public.tapflow_r1_alerts`. It shows **Possible Flow Sensor Failure**, the exact `R1_MISSING_FLOW_SIGNAL` code, room, recorded evidence, and detection and resolution times in Philippine Time. Active alerts appear first and resolved alerts remain in the log. The only row filter is `code = R1_MISSING_FLOW_SIGNAL`; there is no status, date, room, or user filter in the history query. **No alert records yet** means the verified account received an empty result, which does not prove the table is empty.
 
 `src/features/alerts/r1-alert-model.ts` maps backend rows to the existing `AlertRecord` view model. The R1 table does not supply a severity. The evidence detail shows recognized fields from the stored JSON, including counts, the Main threshold, sample timestamps, and the recorded note.
@@ -191,7 +265,7 @@ Auth and SELECT failures show a useful message with the actual HTTP status/error
 
 **Supabase review.** The local configuration points to `idaagpjpyrmgaqxsyixo.supabase.co`, confirmed as the project containing the incident's rows. A successful empty alert read means the session sees zero rows, which can happen when RLS filters out a record that appears in the SQL Editor. [scripts/r1-alerts-review.sql](./scripts/r1-alerts-review.sql) checks schema/table privileges, all row policies, publication membership, and existing IDs **1 and 3** with both statuses eligible. Its read-only authenticated check uses the dashboard user's verified Auth UUID and rolls back. The SQL Editor's privileged results alone do not establish browser access.
 
-The exact conditional configuration SQL is provided separately in that file's final comment block and is **not executed by the application or a migration**. Only apply a missing schema USAGE/table SELECT grant after inspection. If rows are hidden by RLS, the proposed SELECT policy limits access to the approved Auth UUID, Room 1, and the R1 code, with both statuses eligible. A restrictive policy can still deny access and must be reviewed in the project's intended access model. RLS stays enabled; no public or unrestricted SELECT policy is proposed. Realtime requires table membership in `supabase_realtime`, INSERT and UPDATE publishing, and SELECT access to the rows under RLS. Publication changes cannot repair a zero-row history SELECT. See [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security) and [Supabase Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes).
+That older review file retains conditional configuration proposals in its final comment block for reference; they are **not required for the reviewed live baseline**. The exported `tapflow_r1_authorized_viewer` policy and existing grants already give this account SELECT access to both statuses across rooms. Preserve them exactly. The export also confirms alert publication membership and INSERT/UPDATE publishing in `supabase_realtime`; no publication change is needed for resolution. If visibility fails, compare the actual signed-in UUID/project and fresh metadata before proposing changes. Publication changes cannot repair a zero-row history SELECT caused by RLS. See [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security) and [Supabase Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes).
 
 In the Console of the existing signed-in development tab at `http://127.0.0.1:5173/alerts`, wait for loading to finish and run:
 

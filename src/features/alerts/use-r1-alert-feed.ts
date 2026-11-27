@@ -3,6 +3,7 @@ import { useLocation } from 'react-router';
 import type { AlertRecord } from './alert-model';
 import { readR1Alerts, R1AlertReadError } from './r1-alert-service';
 import { subscribeToR1Alerts } from './r1-alert-realtime';
+import { canResolveR1, resolveR1Incident } from './r1-incident-actions';
 import type { R1DatabaseEvent, R1RealtimeState } from './r1-alert-realtime';
 
 const FALLBACK_INTERVAL_MS = 15_000;
@@ -25,11 +26,36 @@ export function useR1AlertFeed() {
   const [snapshot, setSnapshot] = useState<AlertSnapshot>({ records: [], loading: true, error: null });
   const [connection, setConnection] = useState<ConnectionState>({ status: 'connecting' });
   const [notifications, setNotifications] = useState<string[]>([]);
+  const [canResolve, setCanResolve] = useState(false);
+  const owner = useRef<AbortController | null>(null);
+  const resolutions = useRef(new Map<string, Promise<void>>());
   const refreshRef = useRef<(reason: RefreshReason) => void>(() => {});
   const refreshAlerts = useCallback(() => refreshRef.current('manual'), []);
+  const resolveAlert = useCallback((id: string, remark: string | null): Promise<void> => {
+    const pending = resolutions.current.get(id);
+    if (pending) return pending;
+    const controller = owner.current;
+    if (!controller || controller.signal.aborted) return Promise.reject(new Error('The alert log is no longer open.'));
+    const request = resolveR1Incident(id, remark, controller.signal).then((record) => {
+      controller.signal.throwIfAborted();
+      // Invalidate older reads before applying the server-confirmed row to every consumer.
+      refreshRef.current('manual');
+      setSnapshot((current) => {
+        const records = new Map(current.records.map((item) => [item.id, item]));
+        records.set(record.id, record);
+        return { ...current, records: [...records.values()] };
+      });
+      setNotifications((current) => current.filter((notificationId) => notificationId !== id));
+    }).finally(() => {
+      if (resolutions.current.get(id) === request) resolutions.current.delete(id);
+    });
+    resolutions.current.set(id, request);
+    return request;
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
+    owner.current = controller;
     const { signal } = controller;
     const knownIds = new Set<string>();
     const insertedIds = new Set<string>();
@@ -133,6 +159,9 @@ export function useR1AlertFeed() {
       if (signal.aborted) return;
       connect();
       void refresh('initial');
+      void canResolveR1(signal).then((allowed) => {
+        if (!signal.aborted) setCanResolve(allowed);
+      });
     });
     // A joined socket does not prove this account is receiving table events.
     // Reconcile even after a successful empty read or a silently missed event.
@@ -150,6 +179,8 @@ export function useR1AlertFeed() {
 
     return () => {
       controller.abort();
+      if (owner.current === controller) owner.current = null;
+      resolutions.current.clear();
       refreshRef.current = () => {};
       window.clearInterval(poll);
       window.clearTimeout(restartTimer);
@@ -174,5 +205,7 @@ export function useR1AlertFeed() {
     notificationCount: notifications.length,
     dismissNotification: () => setNotifications((current) => current.slice(0, -1)),
     refreshAlerts,
+    canResolve,
+    resolveAlert,
   };
 }

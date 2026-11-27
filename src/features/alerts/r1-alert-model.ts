@@ -5,6 +5,7 @@ import type { AlertEvidenceItem, AlertRecord } from './alert-model';
 export const R1_ALERT_CODE = 'R1_MISSING_FLOW_SIGNAL';
 export const R1_ALERT_TABLE = 'tapflow_r1_alerts';
 const timestampPattern = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/i;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -61,8 +62,13 @@ export function parseR1Alert(row: unknown): AlertRecord | null {
     message: title,
     description: `The Main sensor detected water flow while ${room.name} reported zero flow pulses during an authorized water-use session. Possible cause: sensor malfunction or disconnected signal wiring.`,
     timestamp,
+    lastDetectedAt: parseTimestamp(row.last_detected_at),
     status,
     resolvedAt: status === 'resolved' ? parseTimestamp(row.resolved_at) : undefined,
+    resolvedBy: status === 'resolved' && typeof row.resolved_by === 'string' && uuidPattern.test(row.resolved_by)
+      ? row.resolved_by : undefined,
+    resolutionRemark: status === 'resolved' && typeof row.resolution_remark === 'string'
+      ? row.resolution_remark.trim() || undefined : undefined,
     evidence: parseEvidence(row.evidence),
   };
 }

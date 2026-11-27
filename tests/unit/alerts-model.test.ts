@@ -106,3 +106,25 @@ test('R1 rejects unsupported rows and avoids imprecise primary keys or local tim
     { detected_at: '2026-11-23T17:30:00' }, { id: '' },
   ]) assert.equal(parseR1Alert({ ...backendR1, ...fields }), null);
 });
+
+test('R1 retains separate detection and resolution audit details without inventing legacy values', () => {
+  const lastDetectedAt = '2026-11-23T17:40:00+00:00';
+  const resolvedBy = '2798728a-3904-44b5-8f7e-7db63213e10b';
+  const record = parseR1Alert({ ...backendR1, last_detected_at: lastDetectedAt, resolved_by: resolvedBy });
+  assert.ok(record);
+  assert.equal(record.timestamp, backendR1.detected_at);
+  assert.equal(record.lastDetectedAt, lastDetectedAt);
+  assert.equal(record.resolvedAt, backendR1.resolved_at);
+  assert.equal(record.resolvedBy, resolvedBy);
+  const legacy = parseR1Alert(backendR1);
+  assert.equal(legacy?.lastDetectedAt, undefined);
+  assert.equal(legacy?.resolvedBy, undefined);
+  const active = parseR1Alert({ ...backendR1, status: 'ACTIVE', resolved_by: resolvedBy });
+  assert.equal(active?.resolvedBy, undefined);
+  for (const invalid of ['missing', '2026-11-23T17:40:00', null, 42]) {
+    assert.equal(parseR1Alert({ ...backendR1, last_detected_at: invalid })?.lastDetectedAt, undefined);
+  }
+  for (const invalid of ['staff', '', null, 42]) {
+    assert.equal(parseR1Alert({ ...backendR1, resolved_by: invalid })?.resolvedBy, undefined);
+  }
+});

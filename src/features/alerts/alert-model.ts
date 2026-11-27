@@ -21,11 +21,14 @@ export interface AlertRecord {
   detectionRule: string;
   severity?: AlertSeverity;
   timestamp: string;
+  lastDetectedAt?: string;
   status: AlertStatus;
   title?: string;
   message?: string;
   description?: string;
   resolvedAt?: string;
+  resolvedBy?: string;
+  resolutionRemark?: string;
   evidence?: readonly AlertEvidenceItem[];
   measuredValue?: number;
   threshold?: number;

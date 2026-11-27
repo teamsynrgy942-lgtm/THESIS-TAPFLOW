@@ -40,9 +40,9 @@ test('the signed-in Alerts log pages through live history and shows recorded evi
   await page.setViewportSize({ width: 390, height: 844 });
   await routeAlerts(page, auth.session.access_token, async (route, url) => {
     const columns = url.searchParams.get('select')?.split(',') ?? [];
-    expect(columns).toHaveLength(7);
+    expect(columns).toHaveLength(10);
     expect(columns[0]).toMatch(/^(?:id:)?id(?:::text)?$/);
-    expect(columns.slice(1)).toEqual(['detected_at', 'room_id', 'code', 'status', 'evidence', 'resolved_at']);
+    expect(columns.slice(1)).toEqual(['detected_at', 'room_id', 'code', 'status', 'evidence', 'resolved_at', 'last_detected_at', 'resolved_by', 'resolution_remark']);
     expect(url.searchParams.get('order')).toMatch(/^detected_at\.desc(?:\.nullslast)?,id\.desc$/);
     const offset = Number(url.searchParams.get('offset') ?? 0);
     offsets.push(offset);

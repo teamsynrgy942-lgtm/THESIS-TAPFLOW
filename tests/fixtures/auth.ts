@@ -78,6 +78,10 @@ export const test = base.extend<{ authenticated: boolean; auth: MockAuth; realti
       expect(route.request().method()).toBe('GET');
       await route.fulfill({ json: [] });
     });
+    await page.route('**/rest/v1/rpc/tapflow_can_resolve_r1', async (route) => {
+      expect(route.request().method()).toBe('POST');
+      await route.fulfill({ json: false });
+    });
 
     // Overview, Room Details, and any secondary tabs keep their reads local.
     await context.route('**/rest/v1/**', async (route) => {
@@ -101,6 +105,12 @@ export const test = base.extend<{ authenticated: boolean; auth: MockAuth; realti
         await route.abort();
         throw new Error('Unexpected telemetry table');
       }
+    });
+    // Secondary tabs also keep capability checks local. The page route above
+    // takes priority over test-specific context telemetry handlers in this tab.
+    await context.route('**/rest/v1/rpc/tapflow_can_resolve_r1', async (route) => {
+      expect(route.request().method()).toBe('POST');
+      await route.fulfill({ json: false });
     });
 
     if (authenticated) {

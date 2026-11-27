@@ -6,7 +6,7 @@ import { createDashboardState } from './dashboard-model';
 import type { DashboardState } from './dashboard-model';
 
 interface DashboardContextValue extends DashboardState {
-  alertFeed: Pick<ReturnType<typeof useR1AlertFeed>, 'loading' | 'error' | 'connection' | 'refreshAlerts'>;
+  alertFeed: Pick<ReturnType<typeof useR1AlertFeed>, 'loading' | 'error' | 'connection' | 'refreshAlerts' | 'canResolve' | 'resolveAlert'>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);

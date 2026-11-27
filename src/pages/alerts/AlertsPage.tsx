@@ -12,7 +12,7 @@ export function AlertsPage() {
       </header>
       <AlertHistory records={alertRecords} rooms={rooms} loading={alertFeed.loading} error={alertFeed.error}
         liveIssue={alertFeed.connection.status === 'unavailable' ? alertFeed.connection.reason : undefined}
-        onRetry={alertFeed.refreshAlerts} />
+        onRetry={alertFeed.refreshAlerts} canResolve={alertFeed.canResolve} onResolve={alertFeed.resolveAlert} />
     </>
   );
 }

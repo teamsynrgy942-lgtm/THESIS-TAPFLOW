@@ -5,7 +5,8 @@ import { parseR1Alert, R1_ALERT_CODE, R1_ALERT_TABLE } from './r1-alert-model';
 
 const PAGE_SIZE = 1000;
 const AUTH_TIMEOUT_MS = 15_000;
-export const R1_ALERT_SELECT = 'id::text, detected_at, room_id, code, status, evidence, resolved_at';
+export const R1_LEGACY_ALERT_SELECT = 'id::text, detected_at, room_id, code, status, evidence, resolved_at';
+export const R1_ALERT_SELECT = `${R1_LEGACY_ALERT_SELECT}, last_detected_at, resolved_by, resolution_remark`;
 export const r1ProjectHost = new URL(import.meta.env.VITE_SUPABASE_URL).hostname;
 
 export interface R1SessionInfo {
@@ -123,11 +124,12 @@ export async function readR1Alerts(signal: AbortSignal): Promise<AlertRecord[]> 
   const records = new Map<string, AlertRecord>();
   let offset = 0;
   let expectedCount: number | null = null;
+  let columns = R1_ALERT_SELECT;
 
   for (;;) {
     signal.throwIfAborted();
     const { data, error, status, count } = await Promise.resolve(supabase.schema('public').from(R1_ALERT_TABLE)
-      .select(R1_ALERT_SELECT, offset === 0 ? { count: 'exact' } : {})
+      .select(columns, offset === 0 ? { count: 'exact' } : {})
       .eq('code', R1_ALERT_CODE)
       .order('detected_at', { ascending: false }).order('id', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
@@ -138,6 +140,16 @@ export async function readR1Alerts(signal: AbortSignal): Promise<AlertRecord[]> 
         throw readFailure(0, error, 'select', session);
       });
     signal.throwIfAborted();
+
+    // Optional audit fields may be installed separately from detector lifecycle work.
+    // Drop only an explicitly missing field; access errors never permit a fallback.
+    const missingField = error?.message.match(/\b(last_detected_at|resolved_by|resolution_remark)\b/)?.[1];
+    if (offset === 0 && error && missingField
+      && ['42703', 'PGRST204'].includes(error.code)
+      && columns.split(', ').includes(missingField)) {
+      columns = columns.split(', ').filter((column) => column !== missingField).join(', ');
+      continue;
+    }
 
     if (error || status < 200 || status >= 300) throw readFailure(status, error, 'select', session);
     if (!Array.isArray(data)) {
