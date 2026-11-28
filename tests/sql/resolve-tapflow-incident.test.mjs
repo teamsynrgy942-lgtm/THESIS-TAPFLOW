@@ -7,6 +7,7 @@ import { PGlite } from '@electric-sql/pglite';
 // This exercises authorization and row isolation, not live multi-session races
 // or the installed R1 detector's behavior.
 const reviewedSetup = await readFile(new URL('../../supabase/drafts/resolve_tapflow_incident.sql', import.meta.url), 'utf8');
+const r2Proposal = await readFile(new URL('../../supabase/drafts/resolve_tapflow_incident_r2.sql', import.meta.url), 'utf8');
 const baselineGuard = /do \$resolution_baseline\$[\s\S]*?\$resolution_baseline\$;/i;
 assert.equal(reviewedSetup.match(new RegExp(baselineGuard.source, 'gi'))?.length, 1);
 // Generic edge cases below use a deliberately different synthetic catalog.
@@ -18,6 +19,8 @@ const otherStaff = '22222222-2222-4222-8222-222222222222';
 const ordinary = '33333333-3333-4333-8333-333333333333';
 const first = '9007199254740993';
 const second = '9007199254740994';
+const room1R2 = '5';
+const room3R2 = '6';
 let db;
 
 async function rows() {
@@ -83,7 +86,9 @@ before(async () => {
       (${first}, '2026-11-27T01:00:00Z', 1, 'R1_MISSING_FLOW_SIGNAL', 'ACTIVE', '{"original":1}', null),
       (${second}, '2026-11-27T02:00:00Z', 1, 'R1_MISSING_FLOW_SIGNAL', 'ACTIVE', '{"original":2}', null),
       (3, '2026-11-27T00:00:00Z', 2, 'R1_MISSING_FLOW_SIGNAL', 'RESOLVED', '{"history":true}', '2026-11-27T00:01:00Z'),
-      (4, '2026-11-27T00:00:00Z', 2, 'OTHER_RULE', 'ACTIVE', '{}', null);
+      (4, '2026-11-27T00:00:00Z', 2, 'OTHER_RULE', 'ACTIVE', '{}', null),
+      (${room1R2}, '2026-11-27T03:00:00Z', 1, 'R2_UNAUTHORIZED_WATER_FLOW', 'ACTIVE', '{"latest_pulses":17}', null),
+      (${room3R2}, '2026-11-27T03:00:00Z', 3, 'R2_UNAUTHORIZED_WATER_FLOW', 'ACTIVE', '{"latest_pulses":21}', null);
     alter table public.tapflow_r1_alerts enable row level security;
     create policy fixture_read on public.tapflow_r1_alerts for select to authenticated
       using(auth.uid() is not null);
@@ -104,12 +109,23 @@ before(async () => {
   const detector = await db.query("select pg_get_functiondef('public.fixture_detector()'::regprocedure) as definition");
   const triggers = await db.query("select pg_get_triggerdef(oid) as definition from pg_trigger where not tgisinternal order by oid");
   await db.exec(setup);
-  assert.deepEqual((await rows()).map(({ id, row }) => {
+  const rowsAfterSetup = await rows();
+  assert.deepEqual(rowsAfterSetup.map(({ id, row }) => {
     const { resolved_by, resolution_remark, ...original } = row;
     assert.equal(resolved_by, null);
     assert.equal(resolution_remark, null);
     return { id, row: original };
   }), originalRows, 'Installation must not update/backfill history.');
+
+  await db.exec('begin');
+  try {
+    await db.query('insert into tapflow_private.r1_staff(user_id) values ($1::uuid)', [staff]);
+    await asRole('authenticated', staff, () => reject(() => resolve(room1R2), 'P0002'));
+  } finally {
+    await db.exec('rollback');
+  }
+  await db.exec(r2Proposal);
+  assert.deepEqual(await rows(), rowsAfterSetup, 'The R2 proposal must not update existing rows on installation.');
   assert.deepEqual(await access(), originalAccess, 'Installation must preserve alert RLS and table privileges.');
   assert.deepEqual(await db.query(`
     select has_schema_privilege('service_role', 'tapflow_private', 'USAGE') as schema_usage,
@@ -144,6 +160,25 @@ test('resolves exactly one of two active same-room incidents, retaining remark a
   assert.equal(changed.detected_at, original.detected_at);
   assert.equal(after.find(({ id }) => id === second).row.status, 'ACTIVE');
   assert.equal(after.filter(({ row }) => row.code === 'R1_MISSING_FLOW_SIGNAL' && row.status === 'ACTIVE').length, 1);
+});
+
+test('the R2 proposal resolves the selected incident and retains its evidence and original audit on retry', async () => {
+  const before = await rows();
+  await asRole('authenticated', ordinary, () => reject(() => resolve(room1R2), '42501'));
+  await db.query('insert into tapflow_private.r1_staff(user_id) values ($1::uuid), ($2::uuid)', [staff, otherStaff]);
+  const result = await asRole('authenticated', staff, () => resolve(room1R2, '  Inspected and repaired valve.  '));
+  assert.equal(result.id, room1R2);
+  assert.equal(result.code, 'R2_UNAUTHORIZED_WATER_FLOW');
+  assert.equal(result.status, 'RESOLVED');
+  assert.equal(result.resolved_by, staff);
+  assert.equal(result.resolution_remark, 'Inspected and repaired valve.');
+  assert.ok(result.resolved_at);
+  assert.deepEqual(result.evidence, { latest_pulses: 17 });
+  assert.deepEqual(await asRole('authenticated', otherStaff, () => resolve(room1R2, 'Later remark')), result);
+  const after = await rows();
+  assert.deepEqual(after.filter(({ id }) => id !== room1R2), before.filter(({ id }) => id !== room1R2));
+  assert.equal(after.find(({ id }) => id === room3R2).row.status, 'ACTIVE');
+  assert.deepEqual((await db.query('select * from public.flow_readings')).rows, []);
 });
 
 test('repeat resolution preserves original timestamp, resolver and remark', async () => {

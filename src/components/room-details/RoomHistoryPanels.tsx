@@ -1,13 +1,15 @@
 import { Link } from 'react-router';
-import type { DashboardAlert } from '../../features/dashboard/dashboard-model';
+import { severityLabels } from '../../features/alerts/alert-model';
+import type { AlertRecord } from '../../features/alerts/alert-model';
+import { R2_ALERT_CODE } from '../../features/alerts/r1-alert-model';
 import { pulseChartWindow } from '../../features/rooms/room-telemetry';
 import type { PulseChartRange, RoomTelemetry } from '../../features/rooms/room-telemetry';
 import { formatTelemetryTime, telemetryErrorLabel } from '../../features/overview/overview-telemetry';
+import { AlertEvidence } from '../alerts/AlertEvidence';
 import { RoomPulseChart } from './RoomPulseChart';
 import { RoomDetailPanel, RoomEmptyState } from './RoomDetailPanel';
 import { RoomIcon } from './RoomIcon';
 import { RoomDetailBadge } from './RoomDetailBadge';
-import { severityLabels } from '../../features/alerts/alert-model';
 
 export function WaterFlowPanel({ telemetry, now, chartRange, onChartRangeChange }: {
   telemetry: RoomTelemetry; now: number; chartRange: PulseChartRange; onChartRangeChange: (range: PulseChartRange) => void;
@@ -39,12 +41,21 @@ export function WaterFlowPanel({ telemetry, now, chartRange, onChartRangeChange 
   );
 }
 
-export function RelatedAlertsPanel({ alerts }: { alerts: readonly DashboardAlert[] }) {
+export function RelatedAlertsPanel({ alerts }: { alerts: readonly AlertRecord[] }) {
   return (
     <RoomDetailPanel id="room-alerts-title" title="Related alerts" className="rd-alerts" action={<Link className="rd-alerts-link" to="/alerts">View Alerts<RoomIcon name="arrowRight" /></Link>}>
       {alerts.length ? (
         <ul className="rd-records">
-          {alerts.map((alert) => <li key={alert.id}><RoomDetailBadge tone="warning">{alert.severity ? severityLabels[alert.severity] : 'Active'}</RoomDetailBadge><strong>{alert.message}</strong></li>)}
+          {alerts.map((alert) => <li key={alert.id}>
+            <div className="rd-record__heading">
+              <RoomDetailBadge tone="warning">{alert.severity ? severityLabels[alert.severity] : 'Active'}</RoomDetailBadge>
+              <strong>{alert.message || alert.detectionRule}</strong>
+            </div>
+            {alert.detectionRule === R2_ALERT_CODE && <>
+              <p className="rd-record__description">{alert.description}</p>
+              <AlertEvidence evidence={alert.evidence} className="rd-record__evidence" />
+            </>}
+          </li>)}
         </ul>
       ) : <RoomEmptyState icon="relatedAlerts" title="No recorded alerts" />}
     </RoomDetailPanel>

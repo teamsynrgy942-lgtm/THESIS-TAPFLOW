@@ -1,7 +1,9 @@
 import { supabase } from '../../lib/supabase';
 import { describeSupabaseError } from '../../lib/supabase-error';
 import type { AlertRecord } from './alert-model';
-import { parseR1Alert, parseR1AlertId } from './r1-alert-model';
+import { parseR1AlertId, parseTapFlowAlert } from './r1-alert-model';
+
+export type IncidentToResolve = Pick<AlertRecord, 'id' | 'detectionRule'>;
 
 /** UI capability only. The resolve RPC independently checks current staff membership. */
 export async function canResolveR1(signal: AbortSignal): Promise<boolean> {
@@ -14,7 +16,7 @@ export async function canResolveR1(signal: AbortSignal): Promise<boolean> {
   }
 }
 
-export async function resolveR1Incident(id: string, remark: string | null, signal: AbortSignal): Promise<AlertRecord> {
+export async function resolveTapFlowIncident({ id, detectionRule }: IncidentToResolve, remark: string | null, signal: AbortSignal): Promise<AlertRecord> {
   if (!parseR1AlertId(id)) throw new Error('The incident ID is invalid.');
   const trimmedRemark = remark?.trim() || null;
   if (trimmedRemark && trimmedRemark.length > 2000) throw new Error('The remark must be 2,000 characters or fewer.');
@@ -27,8 +29,9 @@ export async function resolveR1Incident(id: string, remark: string | null, signa
     const { message } = describeSupabaseError(error, [import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY]);
     throw new Error(message ? `Could not resolve this incident: ${message}` : 'Could not resolve this incident. Please try again.');
   }
-  const record = parseR1Alert(data);
-  if (!record || record.id !== id || record.status !== 'resolved' || !record.resolvedAt || !record.resolvedBy) {
+  const record = parseTapFlowAlert(data);
+  if (!record || record.id !== id || record.detectionRule !== detectionRule
+    || record.status !== 'resolved' || !record.resolvedAt || !record.resolvedBy) {
     throw new Error('Supabase did not confirm a recorded resolution. Refresh the alert log and try again.');
   }
   return record;

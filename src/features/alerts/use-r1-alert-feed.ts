@@ -3,7 +3,8 @@ import { useLocation } from 'react-router';
 import type { AlertRecord } from './alert-model';
 import { readR1Alerts, R1AlertReadError } from './r1-alert-service';
 import { subscribeToR1Alerts } from './r1-alert-realtime';
-import { canResolveR1, resolveR1Incident } from './r1-incident-actions';
+import { canResolveR1, resolveTapFlowIncident } from './r1-incident-actions';
+import type { IncidentToResolve } from './r1-incident-actions';
 import type { R1DatabaseEvent, R1RealtimeState } from './r1-alert-realtime';
 
 const FALLBACK_INTERVAL_MS = 15_000;
@@ -31,12 +32,13 @@ export function useR1AlertFeed() {
   const resolutions = useRef(new Map<string, Promise<void>>());
   const refreshRef = useRef<(reason: RefreshReason) => void>(() => {});
   const refreshAlerts = useCallback(() => refreshRef.current('manual'), []);
-  const resolveAlert = useCallback((id: string, remark: string | null): Promise<void> => {
+  const resolveAlert = useCallback((incident: IncidentToResolve, remark: string | null): Promise<void> => {
+    const { id } = incident;
     const pending = resolutions.current.get(id);
     if (pending) return pending;
     const controller = owner.current;
     if (!controller || controller.signal.aborted) return Promise.reject(new Error('The alert log is no longer open.'));
-    const request = resolveR1Incident(id, remark, controller.signal).then((record) => {
+    const request = resolveTapFlowIncident(incident, remark, controller.signal).then((record) => {
       controller.signal.throwIfAborted();
       // Invalidate older reads before applying the server-confirmed row to every consumer.
       refreshRef.current('manual');

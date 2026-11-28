@@ -1,19 +1,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { formatActivityTime, selectRoomAlerts } from '../../src/features/rooms/room-details-model.ts';
-import type { DashboardAlert } from '../../src/features/dashboard/dashboard-model.ts';
+import type { AlertRecord } from '../../src/features/alerts/alert-model.ts';
 import { applyRoomTelemetryReport, buildPulseChart, createRoomTelemetry, formatPulseTimestamp, latestRoomReading, pulseChartSamples, pulseChartWindow } from '../../src/features/rooms/room-telemetry.ts';
 import type { FlowReading, RoomTelemetryReport, TelemetryError } from '../../src/features/telemetry/telemetry-types.ts';
 
-test('related alerts contain only alerts for the selected room', () => {
-  const alerts: DashboardAlert[] = [
-    { id: '1', roomId: 'room-1', severity: 'warning', message: 'Room 1 demo warning' },
-    { id: '2', roomId: 'room-2', severity: 'critical', message: 'Room 2 demo warning' },
-    { id: '3', severity: 'warning', message: 'System demo warning' },
+test('related alerts contain only active alerts for the selected room', () => {
+  const active = { status: 'active', detectionRule: 'room-warning', timestamp: '2026-11-13T17:30:00Z' } as const;
+  const alerts: AlertRecord[] = [
+    { ...active, id: '1', target: { kind: 'room', roomId: 'room-1' } },
+    { ...active, id: '2', target: { kind: 'room', roomId: 'room-2' } },
+    { ...active, id: '3', target: { kind: 'main-inlet' } },
+    { ...active, id: '4', target: { kind: 'room', roomId: 'room-2' }, status: 'resolved' },
   ];
   assert.deepEqual(selectRoomAlerts(alerts, 'room-2').map((alert) => alert.id), ['2']);
   assert.deepEqual(selectRoomAlerts(alerts, 'room-3'), []);
-  assert.equal(alerts.length, 3);
+  assert.equal(alerts.length, 4);
 });
 
 test('room check times use PHT across a UTC date boundary', () => {

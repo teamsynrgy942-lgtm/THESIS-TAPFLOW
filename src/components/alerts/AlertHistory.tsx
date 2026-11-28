@@ -1,10 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { AlertRecord } from '../../features/alerts/alert-model';
 import type { R1RealtimeState } from '../../features/alerts/r1-alert-realtime';
+import type { IncidentToResolve } from '../../features/alerts/r1-incident-actions';
 import type { Room } from '../../features/dashboard/dashboard-model';
 import { formatAlertTimestamp, getAlertTargetLabel, orderAlertRecords } from '../../features/alerts/alert-model';
-import { R1_ALERT_CODE } from '../../features/alerts/r1-alert-model';
+import { isTapFlowAlertCode, R2_ALERT_CODE } from '../../features/alerts/r1-alert-model';
 import { AlertBadge, AlertSeverityBadge } from './AlertBadge';
+import { AlertEvidence } from './AlertEvidence';
 import { AlertIcon } from './AlertIcon';
 
 type LiveIssue = Extract<R1RealtimeState, { status: 'unavailable' }>['reason'];
@@ -25,7 +27,7 @@ export function AlertHistory({ records, rooms, loading, error, liveIssue, onRetr
   liveIssue?: LiveIssue;
   onRetry: () => void;
   canResolve?: boolean;
-  onResolve?: (id: string, remark: string | null) => Promise<void>;
+  onResolve?: (incident: IncidentToResolve, remark: string | null) => Promise<void>;
 }) {
   const newestFirst = orderAlertRecords(records);
   const activeRecords = newestFirst.filter(({ status }) => status === 'active');
@@ -75,7 +77,7 @@ function AlertHistoryRow({ record, rooms, showSeverity, canResolve, onResolve }:
   rooms: readonly Room[];
   showSeverity: boolean;
   canResolve: boolean;
-  onResolve?: (id: string, remark: string | null) => Promise<void>;
+  onResolve?: (incident: IncidentToResolve, remark: string | null) => Promise<void>;
 }) {
   const active = record.status === 'active';
   const [pending, setPending] = useState(false);
@@ -87,7 +89,10 @@ function AlertHistoryRow({ record, rooms, showSeverity, canResolve, onResolve }:
   const mounted = useRef(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const dialogId = useId();
-  const mayResolve = active && canResolve && !!onResolve && record.detectionRule === R1_ALERT_CODE;
+  const mayResolve = active && canResolve && !!onResolve && isTapFlowAlertCode(record.detectionRule);
+  const isR2 = record.detectionRule === R2_ALERT_CODE;
+  const roomLabel = getAlertTargetLabel(record.target, rooms);
+  const alertTitle = record.title ?? record.detectionRule;
 
   useEffect(() => {
     mounted.current = true;
@@ -109,7 +114,7 @@ function AlertHistoryRow({ record, rooms, showSeverity, canResolve, onResolve }:
     setResolutionError(null);
     setResolutionSucceeded(false);
     try {
-      await onResolve(record.id, remark.trim() || null);
+      await onResolve(record, remark.trim() || null);
       if (mounted.current) {
         setResolutionSucceeded(true);
         setConfirming(false);
@@ -124,19 +129,12 @@ function AlertHistoryRow({ record, rooms, showSeverity, canResolve, onResolve }:
   return (
     <tr data-alert-id={record.id} className={active ? 'alert-history__row--active' : undefined}>
       <th scope="row">
-        <span>{record.title ?? record.detectionRule}</span>
+        <span>{alertTitle}</span>
         {record.title && <code className="alert-history__code">{record.detectionRule}</code>}
         {record.description && <p className="alert-history__description">{record.description}</p>}
-        {!!record.evidence?.length && <details className="alert-history__evidence">
-          <summary>Recorded evidence</summary>
-          <dl>
-            {record.evidence?.map(({ label, value, dateTime }) => <div key={label}>
-              <dt>{label}</dt><dd>{dateTime ? <time dateTime={dateTime}>{value}</time> : value}</dd>
-            </div>)}
-          </dl>
-        </details>}
+        <AlertEvidence evidence={record.evidence} className="alert-history__evidence" />
       </th>
-      <td>{getAlertTargetLabel(record.target, rooms)}</td>
+      <td>{roomLabel}</td>
       {showSeverity && <td>{record.severity ? <AlertSeverityBadge severity={record.severity} /> : 'Unspecified'}</td>}
       <td>
         <time dateTime={record.timestamp}>{formatAlertTimestamp(record.timestamp)}</time>
@@ -165,7 +163,11 @@ function AlertHistoryRow({ record, rooms, showSeverity, canResolve, onResolve }:
           onCancel={(event) => { event.preventDefault(); if (!pendingRef.current) setConfirming(false); }}>
           <form onSubmit={(event) => { event.preventDefault(); void resolve(); }} aria-busy={pending}>
             <h2 id={`${dialogId}-title`}>Mark alert as resolved</h2>
-            <p id={`${dialogId}-description`}>Resolve alert #{record.id} for {getAlertTargetLabel(record.target, rooms)}? The alert will remain in history.</p>
+            <p id={`${dialogId}-description`}>
+              Resolve alert #{record.id} for {roomLabel}{isR2 ? ` (${alertTitle})` : ''}?{' '}
+              {isR2 && 'Confirm that you inspected the incident and addressed its cause. '}
+              The alert will remain in history.
+            </p>
             <label htmlFor={`${dialogId}-remark`}>Remark (optional)</label>
             <textarea id={`${dialogId}-remark`} rows={3} maxLength={2000} autoFocus disabled={pending}
               value={remark} onChange={(event) => setRemark(event.target.value)} />
@@ -186,7 +188,7 @@ function AlertEmptyState() {
     <div className="alert-empty">
       <span className="alert-empty__icon"><AlertIcon name="empty" /></span>
       <h3>No alert records yet</h3>
-      <p>No R1 alert records are visible to this signed-in account.</p>
+      <p>No alert records are visible to this signed-in account.</p>
     </div>
   );
 }

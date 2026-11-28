@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { createDashboardState } from '../../src/features/dashboard/dashboard-model.ts';
 import { formatAlertMeasurement, formatAlertTimestamp, getAlertTargetLabel, orderAlertRecords, toActiveDashboardAlerts } from '../../src/features/alerts/alert-model.ts';
 import type { AlertRecord } from '../../src/features/alerts/alert-model.ts';
-import { parseR1Alert, parseR1AlertId, R1_ALERT_CODE } from '../../src/features/alerts/r1-alert-model.ts';
+import { parseR1Alert, parseR1AlertId, parseTapFlowAlert, R1_ALERT_CODE, R2_ALERT_CODE } from '../../src/features/alerts/r1-alert-model.ts';
 
 // Synthetic alert records are confined to tests.
 const activeFixture: AlertRecord = {
@@ -127,4 +127,60 @@ test('R1 retains separate detection and resolution audit details without inventi
   for (const invalid of ['staff', '', null, 42]) {
     assert.equal(parseR1Alert({ ...backendR1, resolved_by: invalid })?.resolvedBy, undefined);
   }
+});
+
+const backendR2 = {
+  id: '73', room_id: 2, code: R2_ALERT_CODE, status: 'ACTIVE', detected_at: '2026-11-23T17:30:00+00:00',
+  evidence: {
+    previous_pulses: 0, latest_pulses: 17, sample_ms: 1000, minimum_pulses_per_sample: 3, confirmation_samples: 2,
+    rfid_active: false, valve_commanded_on: false, status_reported_at: '2026-11-23T17:29:50+00:00',
+    last_observed_at: '2026-11-23T17:30:00+00:00', flow_lpm: 0.5,
+  },
+};
+
+test('R2 presents raw pulse evidence, false device status and Philippine timestamps', () => {
+  const record = parseTapFlowAlert(backendR2);
+  assert.ok(record);
+  assert.equal(record.detectionRule, R2_ALERT_CODE);
+  assert.equal(record.title, 'Unauthorized Water Flow');
+  assert.equal(record.message, record.title);
+  assert.equal(record.timestamp, backendR2.detected_at);
+  assert.equal(record.status, 'active');
+  assert.equal(record.resolvedAt, undefined);
+  assert.deepEqual(record.evidence, [
+    { label: 'Previous pulses', value: '0' },
+    { label: 'Latest pulses', value: '17' },
+    { label: 'Sample interval', value: '1000 ms' },
+    { label: 'Minimum pulses per sample', value: '3' },
+    { label: 'Confirmation samples', value: '2' },
+    { label: 'RFID active', value: 'No' },
+    { label: 'Valve commanded on', value: 'No' },
+    { label: 'Status reported at', value: 'Nov 24, 2026, 1:29 AM PHT', dateTime: backendR2.evidence.status_reported_at },
+    { label: 'Last observed at', value: 'Nov 24, 2026, 1:30 AM PHT', dateTime: backendR2.evidence.last_observed_at },
+  ]);
+  assert.equal(parseR1Alert(backendR2), null);
+});
+
+test('R2 maps all three room IDs and gives each room its own description', () => {
+  for (const room of [1, 2, 3]) {
+    for (const room_id of [room, String(room)]) {
+      const record = parseTapFlowAlert({ ...backendR2, room_id });
+      assert.deepEqual(record?.target, { kind: 'room', roomId: `room-${room}` });
+      assert.equal(record?.description, `Room ${room} reported sustained water-flow pulses while recent room status indicated an inactive RFID session and a valve commanded OFF.`);
+    }
+  }
+  assert.equal(parseTapFlowAlert({ ...backendR2, room_id: 4 }), null);
+});
+
+test('R2 history retains resolved incidents with partial evidence', () => {
+  const resolvedAt = '2026-11-23T17:45:00+00:00';
+  const record = parseTapFlowAlert({
+    ...backendR2, status: 'RESOLVED', resolved_at: resolvedAt,
+    evidence: { latest_pulses: -1, rfid_active: false, status_reported_at: '2026-11-23T17:30:00', last_observed_at: null },
+  });
+  assert.ok(record);
+  assert.equal(record.status, 'resolved');
+  assert.equal(record.resolvedAt, resolvedAt);
+  assert.deepEqual(record.evidence, [{ label: 'RFID active', value: 'No' }]);
+  assert.deepEqual(toActiveDashboardAlerts([record]), []);
 });

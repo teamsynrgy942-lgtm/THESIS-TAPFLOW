@@ -12,7 +12,7 @@ import { WaterFlowPanel, RelatedAlertsPanel } from '../../components/room-detail
 import './RoomDetailsPage.css';
 
 export function RoomDetailsPage() {
-  const { alerts } = useDashboardState();
+  const { alertRecords } = useDashboardState();
   const { room: selectedRoom, telemetry, now, chartRange, setChartRange } = useRoomTelemetry();
   const reading = latestRoomReading(telemetry);
   const error = reading.error ?? telemetry.status.error;
@@ -42,7 +42,7 @@ export function RoomDetailsPage() {
           </p>}
           <div className="rd-panel-grid">
             <WaterFlowPanel telemetry={telemetry} now={now} chartRange={chartRange} onChartRangeChange={setChartRange} />
-            <RelatedAlertsPanel alerts={selectRoomAlerts(alerts, selectedRoom.id)} />
+            <RelatedAlertsPanel alerts={selectRoomAlerts(alertRecords, selectedRoom.id)} />
           </div>
           <footer className="rd-footnote">
             <Link className="dashboard-return-link" to="/overview">← Back to Overview</Link>
