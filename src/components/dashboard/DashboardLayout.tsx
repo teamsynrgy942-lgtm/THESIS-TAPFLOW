@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from 'react-router';
-import sidebarLogo from '../../assets/figma/overview/sidebar-logo.png';
+import sidebarLogo from '../../assets/figma/tapflow-logo.png';
 import { OverviewUpdateTime } from './OverviewUpdateTime';
 import './DashboardLayout.css';
 import roomDetailsLogo from '../../assets/figma/room-details/sidebar-logo.png';
@@ -29,8 +29,8 @@ export function DashboardLayout({ variant = 'default' }: { variant?: 'default' |
     <div className={`dashboard-shell${isRoomDetails ? ' dashboard-shell--room-details' : ''}${isAlerts ? ' dashboard-shell--alerts' : ''}`}>
       <a className="dashboard-skip-link" href="#dashboard-main">Skip to content</a>
       <aside className="dashboard-sidebar" aria-label="TapFlow sidebar">
-        <Link className="dashboard-brand" to="/" aria-label="Back to Welcome">
-          <img src={isRoomDetails ? roomDetailsLogo : sidebarLogo} alt="" width={isRoomDetails ? 42 : 38} height={isRoomDetails ? 42 : 38} /><span>TapFlow</span>
+        <Link className={`dashboard-brand${variant === 'default' ? ' dashboard-brand--overview' : ''}`} to="/" aria-label="Back to Welcome">
+          <img src={isRoomDetails ? roomDetailsLogo : sidebarLogo} alt="" width={42} height={42} /><span>TapFlow</span>
         </Link>
         <nav className="dashboard-navigation" aria-label="Dashboard navigation">
           {navigation.map(({ to, label }) => (

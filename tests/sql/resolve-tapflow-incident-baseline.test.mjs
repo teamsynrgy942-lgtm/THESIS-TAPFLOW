@@ -3,84 +3,33 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { PGlite } from '@electric-sql/pglite';
 
-// Local PostgreSQL only. Public DDL, policies and detector source come from the
-// reviewed live catalog export. The private episode table was not exported: its
-// minimal fixture below contains only the fields referenced by that source.
-// This is not a full restoration of the live database or a concurrency test.
-const baseline = JSON.parse(await readFile(new URL('../../r1_lifecycle_baseline.json', import.meta.url), 'utf8'));
-const setup = await readFile(new URL('../../supabase/drafts/resolve_tapflow_incident.sql', import.meta.url), 'utf8');
-const enrollment = await readFile(new URL('../../supabase/drafts/enroll_r1_dashboard_staff.sql', import.meta.url), 'utf8');
-const verification = await readFile(new URL('../../scripts/verify-r1-resolution.sql', import.meta.url), 'utf8');
-const viewerPolicy = baseline.tables.find(({ table }) => table === 'tapflow_r1_alerts').policies
-  .find(({ policyname }) => policyname === 'tapflow_r1_authorized_viewer');
-const staff = viewerPolicy.qual.match(/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}/i)?.[0];
-assert.equal(staff, '8b9e95e7-38e1-4eee-8b7e-12440b2ab00c');
+// Local PostgreSQL only. All accounts, rows, grants and schema state are synthetic.
+// This fixture is not a live export or a full database restoration. The scripts
+// are exercised with only their documented account placeholder substituted;
+// the deployment baseline guard is not removed or changed in these tests.
+const staff = '11111111-1111-4111-8111-111111111111';
+async function renderScript(relativePath) {
+  const template = await readFile(new URL(relativePath, import.meta.url), 'utf8');
+  assert.ok(template.includes('<APPROVED_AUTH_USER_UUID>'), `${relativePath} documents its account input.`);
+  return template.replaceAll('<APPROVED_AUTH_USER_UUID>', staff);
+}
+const [setup, enrollment, verification] = await Promise.all([
+  renderScript('../../supabase/drafts/resolve_tapflow_incident.sql'),
+  renderScript('../../supabase/drafts/enroll_r1_dashboard_staff.example.sql'),
+  renderScript('../../scripts/verify-r1-resolution.sql'),
+]);
+// PostgreSQL stores function body newlines verbatim. Normalize the legacy CRLF
+// body representation so its checked fingerprint is independent of Git's
+// checkout line-ending configuration on Windows and Linux.
+const fixtureSql = (await readFile(new URL('../fixtures/sql/r1-resolution-baseline.sql', import.meta.url), 'utf8'))
+  .replace(/\r?\n/g, '\r\n');
 const first = '9007199254740993';
 const second = '9007199254740994';
-const identifier = (value) => `"${value.replaceAll('"', '""')}"`;
-const relation = ({ schema, table }) => `${identifier(schema)}.${identifier(table)}`;
 
 async function fixture() {
   const db = new PGlite();
   try {
-    await db.exec(`
-      create role anon nologin;
-      create role authenticated nologin;
-      create role service_role nologin;
-      create schema auth;
-      create table auth.users(id uuid primary key);
-      insert into auth.users values ('${staff}');
-      create function auth.uid() returns uuid language sql stable as $$
-        select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
-      $$;
-      grant usage on schema auth, public to anon, authenticated, service_role;
-      create schema tapflow_internal;
-      create table tapflow_internal.r1_room_episode (
-        room_id integer primary key, alert_id bigint,
-        after_at timestamptz not null default now(), last_observed_at timestamptz
-      );
-    `);
-    for (const table of baseline.tables) {
-      const columns = table.columns.map((column) => {
-        const precision = column.data_type === 'numeric' && column.numeric_precision != null
-          ? `(${column.numeric_precision},${column.numeric_scale})` : '';
-        const identity = column.is_identity === 'YES'
-          ? ` generated ${column.identity_generation} as identity` : '';
-        const defaultValue = column.column_default == null ? '' : ` default ${column.column_default}`;
-        const required = column.is_nullable === 'NO' ? ' not null' : '';
-        return `${identifier(column.column_name)} ${column.data_type}${precision}${identity}${defaultValue}${required}`;
-      });
-      const constraints = table.constraints.map(({ name, definition }) => `constraint ${identifier(name)} ${definition}`);
-      await db.exec(`create table ${relation(table)} (${[...columns, ...constraints].join(', ')});`);
-      for (const index of table.indexes) {
-        if (!table.constraints.some(({ name }) => name === index.indexname)) await db.exec(index.indexdef);
-      }
-      if (table.rls_enabled) await db.exec(`alter table ${relation(table)} enable row level security;`);
-      if (table.rls_forced) await db.exec(`alter table ${relation(table)} force row level security;`);
-      for (const policy of table.policies) {
-        const roleList = policy.roles.map((role) => role === 'public' ? 'public' : identifier(role)).join(', ');
-        await db.exec(`create policy ${identifier(policy.policyname)} on ${relation(table)}
-          as ${policy.permissive} for ${policy.cmd} to ${roleList}
-          ${policy.qual == null ? '' : `using (${policy.qual})`}
-          ${policy.with_check == null ? '' : `with check (${policy.with_check})`};`);
-      }
-      for (const grant of table.table_grants) {
-        await db.exec(`grant ${grant.privilege_type} on ${relation(table)} to ${identifier(grant.grantee)}
-          ${grant.is_grantable === 'YES' ? 'with grant option' : ''};`);
-      }
-    }
-    for (const fn of baseline.functions) await db.exec(fn.definition);
-    for (const trigger of baseline.triggers) await db.exec(trigger.definition);
-    await db.exec(`
-      insert into public.tapflow_r1_alerts(id, room_id, detected_at, evidence) values
-        (${first}, 1, '2026-11-27T01:00:00Z', '{"original":1}'),
-        (${second}, 1, '2026-11-27T02:00:00Z', '{"original":2}');
-      insert into public.tapflow_r1_alerts(id, room_id, status, detected_at, resolved_at, evidence)
-        values (3, 2, 'RESOLVED', '2026-11-27T00:00:00Z', '2026-11-27T00:01:00Z', '{"history":true}');
-      insert into tapflow_internal.r1_room_episode(room_id, alert_id, after_at, last_observed_at)
-        values (1, ${first}, now() - interval '120 seconds', now() - interval '60 seconds');
-      insert into public.room_status(room_id, rfid_active, valve_commanded_on) values (1, true, true);
-    `);
+    await db.exec(fixtureSql);
     return db;
   } catch (error) {
     await db.close();
@@ -138,7 +87,7 @@ async function asStaff(db, action) {
   finally { await db.exec('reset role'); }
 }
 
-test('the unmodified resolution SQL installs against the exported detector and preserves its catalog and episode state', async () => {
+test('the resolution templates preserve the synthetic detector catalog, policy and episode state', async () => {
   const db = await fixture();
   try {
     const catalog = await metadata(db);
@@ -159,7 +108,7 @@ test('the unmodified resolution SQL installs against the exported detector and p
     await db.exec(enrollment);
     await db.exec(enrollment);
     assert.deepEqual((await db.query('select user_id::text, enabled from tapflow_private.r1_staff')).rows,
-      [{ user_id: staff, enabled: true }], 'The exact reviewed enrollment script is idempotent.');
+      [{ user_id: staff, enabled: true }], 'The enrollment template is idempotent.');
     await verify(db, 2, 1);
     const resolution = await asStaff(db, async () => {
       assert.equal((await db.query('select public.tapflow_can_resolve_r1() as allowed')).rows[0].allowed, true);
@@ -191,8 +140,8 @@ test('the installed detector keeps a resolved episode latched through repeated f
     await asStaff(db, () => db.query('select public.resolve_tapflow_incident($1, $2)', [first, null]));
     await db.exec('begin');
     const before = await alerts(db);
-    // Exact exported trigger/function, with synthetic sample data satisfying its
-    // installed freshness, spacing, authorization and flow predicates.
+    // Fixture trigger/function with samples satisfying its freshness, spacing,
+    // authorization and flow predicates.
     await db.exec(`
       insert into public.flow_readings(device_id, sample_ms, flow_lpm, r1_received_at) values
         ('main', 15000, 1, now() - interval '30 seconds'),
@@ -219,6 +168,10 @@ test('the deployment preflight rejects detector, SELECT policy and alert-trigger
   try {
     const originalCatalog = await metadata(db);
     const originalRows = await alerts(db);
+    const unfilledSetup = await readFile(new URL('../../supabase/drafts/resolve_tapflow_incident.sql', import.meta.url), 'utf8');
+    await assert.rejects(() => db.exec(unfilledSetup), (error) => error.code === '22023',
+      'The public template requires a deliberate account value before installing anything.');
+    await db.exec('rollback');
     const changes = [
       `create or replace function public.tapflow_r1_after_flow_insert() returns trigger language plpgsql as $$ begin return new; end; $$;`,
       `alter policy tapflow_r1_authorized_viewer on public.tapflow_r1_alerts using (false);`,

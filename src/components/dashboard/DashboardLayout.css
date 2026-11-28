@@ -40,6 +40,11 @@
 }
 
 .dashboard-brand img { flex: 0 0 auto; border-radius: 50%; }
+
+/* Keep Overview's brand divider and navigation in place with the full-size mark. */
+.dashboard-brand--overview { padding-bottom: 18px; white-space: nowrap; }
+.dashboard-brand--overview img { display: block; width: 42px; height: 42px; object-fit: contain; }
+
 .dashboard-navigation { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; }
 
 .dashboard-navigation__link {

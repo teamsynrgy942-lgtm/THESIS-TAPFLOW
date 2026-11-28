@@ -22,6 +22,25 @@
   letter-spacing: -0.6px;
 }
 
+@media (min-width: 801px) {
+  /* Match Overview's divider without moving the branding row or navigation. */
+  .dashboard-shell--room-details:not(.dashboard-shell--alerts) .dashboard-brand {
+    position: relative;
+    border-bottom-color: transparent;
+  }
+
+  .dashboard-shell--room-details:not(.dashboard-shell--alerts) .dashboard-brand::after {
+    position: absolute;
+    top: calc(42px + 18px); /* Logo height + Overview's gap. */
+    right: 2px; /* Increase the existing 22px sidebar insets to 24px. */
+    left: 2px;
+    height: 1px;
+    background: #2c4961;
+    content: '';
+    pointer-events: none;
+  }
+}
+
 .dashboard-shell--room-details .dashboard-navigation {
   gap: 7px;
   padding-top: 24px;

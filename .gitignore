@@ -7,6 +7,10 @@ playwright-report/
 .env
 .env.*
 !.env.example
+# Project-specific Supabase exports and filled-in SQL stay local.
+/r1_lifecycle_baseline.json
+/supabase/drafts/enroll_r1_dashboard_staff.sql
+*.local.sql
 *.tsbuildinfo
 .DS_Store
 Thumbs.db

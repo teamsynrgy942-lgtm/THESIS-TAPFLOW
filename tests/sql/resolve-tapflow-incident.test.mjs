@@ -11,7 +11,7 @@ const baselineGuard = /do \$resolution_baseline\$[\s\S]*?\$resolution_baseline\$
 assert.equal(reviewedSetup.match(new RegExp(baselineGuard.source, 'gi'))?.length, 1);
 // Generic edge cases below use a deliberately different synthetic catalog.
 // Only this named guard is omitted in memory. The companion baseline suite runs
-// the complete, unmodified SQL against the exact exported detector and policy.
+// the complete SQL template with a synthetic viewer and detector fixture.
 const setup = reviewedSetup.replace(baselineGuard, '-- Guard omitted ONLY in this generic synthetic fixture.');
 const staff = '11111111-1111-4111-8111-111111111111';
 const otherStaff = '22222222-2222-4222-8222-222222222222';

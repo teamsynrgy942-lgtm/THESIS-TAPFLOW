@@ -62,12 +62,12 @@ test('Overview retains the Figma shell and cards while displaying database telem
   expect(inletBounds!.y).toBeCloseTo(cards[0].y + cards[0].height + 16, 0);
   expect(inletBounds!.width).toBeCloseTo(cards.at(-1)!.x + cards.at(-1)!.width - cards[0].x, 0);
   const logo = await page.locator('.dashboard-brand img').evaluate((image: HTMLImageElement) => ({
-    loaded: image.complete && image.naturalWidth === 42,
+    loaded: image.complete && image.naturalWidth === 224 && image.naturalHeight === 224,
     local: new URL(image.src).origin === location.origin,
     width: image.getBoundingClientRect().width,
     height: image.getBoundingClientRect().height,
   }));
-  expect(logo).toEqual({ loaded: true, local: true, width: 38, height: 38 });
+  expect(logo).toEqual({ loaded: true, local: true, width: 42, height: 42 });
   const dimensions = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight }));
   expect(dimensions).toEqual({ width: 1440, height: 900 });
   await page.screenshot({ path: testInfo.outputPath('overview-desktop.png'), fullPage: true });
